@@ -26,6 +26,9 @@ struct TrainMapView: View {
     /// second — only triggers a re-render when the filtered, on-screen set actually changes, instead
     /// of on every position update anywhere in Sweden.
     @State private var displayedTrains: [LiveTrain] = []
+    /// When `displayedTrains` was last replaced. Markers are dimmed as stale as of this moment, not
+    /// as of whenever `body` last ran, so `looksDifferent` knows exactly what is on screen.
+    @State private var displayedAt = Date.distantPast
     @State private var refreshTask: Task<Void, Never>?
     /// The selected journey's route, following real track geometry where possible, one entry per
     /// leg between consecutive stops so `routeOverlay` can colour a cancelled leg differently.
@@ -38,8 +41,9 @@ struct TrainMapView: View {
     /// and a nationwide `ForEach` over the whole directory would rebuild ~700 annotations — and
     /// re-parse ~700 WKT coordinate strings — every time, almost all of them off-screen.
     @State private var stationLayout = StationLayout()
-    /// The map's height in points, needed to judge how far apart the station dots actually look.
-    @State private var mapHeight: CGFloat = 0
+    /// The map's size in points, needed to judge how far apart the station dots actually look and
+    /// how far a train has to move before its marker visibly does.
+    @State private var mapSize: CGSize = .zero
 
     private static let logger = Logger(subsystem: "se.tagradar.app", category: "TrainMapView")
 
@@ -86,7 +90,8 @@ struct TrainMapView: View {
                         severity: settings.colorMarkersByDelay ? delays.severity(for: train.key) : .unknown,
                         isSelected: train.id == selectedTrainID,
                         showLabel: showLabels,
-                        compact: visibleRegion.span.latitudeDelta > 5
+                        isStale: train.isStale(at: displayedAt),
+                        compact: compactMarkers
                     )
                 } label: {
                     Text(train.displayNumber)
@@ -101,18 +106,26 @@ struct TrainMapView: View {
         }
         .onMapCameraChange(frequency: .onEnd) { context in
             visibleRegion = context.region
+            // This refreshes right away, and a task still sleeping out a zoomed-out interval would
+            // otherwise hold off the next live update for that long after zooming in.
+            cancelRefresh()
             refreshDisplayedTrains()
             refreshDisplayedStations()
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-            mapHeight = height
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            mapSize = size
             refreshDisplayedStations()
+            // A new size is a new scale for `looksDifferent`, so apply it now, not on the next tick.
+            refreshDisplayedTrains()
         }
-        .onChange(of: live.updateCount, initial: true) { _, _ in
+        .onLiveTrainsUpdate(initial: true) {
             scheduleRefresh()
         }
         .onDisappear {
-            refreshTask?.cancel()
+            cancelRefresh()
+        }
+        .onChange(of: settings.showInactiveTrains) { _, _ in
+            refreshDisplayedTrains()
         }
         .onChange(of: selectedKey) { _, _ in
             fitCameraToRouteIfNeeded()
@@ -157,7 +170,14 @@ struct TrainMapView: View {
     /// ~400 ms) only burns main-thread time without a visible benefit. Zoomed into a city or line,
     /// refresh at full speed.
     private var refreshInterval: Duration {
-        visibleRegion.span.latitudeDelta > 3 ? .milliseconds(1500) : Self.minRefreshInterval
+        let span = visibleRegion.span.latitudeDelta
+        return if span > 5 {
+            .seconds(3)
+        } else if span > 3 {
+            .milliseconds(1500)
+        } else {
+            Self.minRefreshInterval
+        }
     }
 
     private static let minRefreshInterval: Duration = .milliseconds(400)
@@ -166,10 +186,21 @@ struct TrainMapView: View {
         guard refreshTask == nil else { return }
         refreshTask = Task {
             try? await Task.sleep(for: refreshInterval)
-            refreshTask = nil
+            // Before clearing `refreshTask`: a cancelled task's slot may already hold its successor.
             guard !Task.isCancelled else { return }
+            refreshTask = nil
             refreshDisplayedTrains()
         }
+    }
+
+    private func cancelRefresh() {
+        refreshTask?.cancel()
+        refreshTask = nil
+    }
+
+    /// Zoomed out this far, trains are drawn as plain dots without a heading.
+    private var compactMarkers: Bool {
+        visibleRegion.span.latitudeDelta > 5
     }
 
     /// Everything `refreshDisplayedStations` depends on apart from the camera (which is handled in
@@ -229,11 +260,11 @@ struct TrainMapView: View {
                 from: stations.located,
                 in: visibleRegion,
                 markedElsewhere: marked,
-                mapHeight: mapHeight
+                mapHeight: mapSize.height
             )
             // The dots are off, but the route's own stop dots still need targets that don't cover
             // each other.
-            : StationPins.layout(from: [], in: visibleRegion, markedElsewhere: marked, mapHeight: mapHeight)
+            : StationPins.layout(from: [], in: visibleRegion, markedElsewhere: marked, mapHeight: mapSize.height)
         guard next != stationLayout else { return }
         stationLayout = next
     }
@@ -242,9 +273,36 @@ struct TrainMapView: View {
     /// when it actually changed, so an update elsewhere in the country doesn't re-render this map.
     private func refreshDisplayedTrains() {
         let next = visibleTrains
-        guard next != displayedTrains else { return }
+        guard looksDifferent(next) else { return }
         displayedTrains = next
+        displayedAt = .now
         delays.track(next.compactMap(\.key))
+    }
+
+    /// Whether handing `next` to the map would change anything on screen. Almost every update moves
+    /// some train, but zoomed out a point covers a kilometre or more, so most moves don't show and
+    /// re-rendering hundreds of annotations for them is what makes panning stutter. Compared against
+    /// what is displayed rather than the previous update, so slow drift still lands once it adds up.
+    private func looksDifferent(_ next: [LiveTrain]) -> Bool {
+        guard next.count == displayedTrains.count else { return true }
+        // Before the first layout there is no scale to judge a move by.
+        guard mapSize.width > 0, mapSize.height > 0 else { return next != displayedTrains }
+        let latTolerance = visibleRegion.span.latitudeDelta / mapSize.height
+        let lonTolerance = visibleRegion.span.longitudeDelta / mapSize.width
+        let compact = compactMarkers
+        let now = Date.now
+        return zip(displayedTrains, next).contains { old, new in
+            old.id != new.id
+                || abs(old.coordinate.latitude - new.coordinate.latitude) >= latTolerance
+                || abs(old.coordinate.longitude - new.coordinate.longitude) >= lonTolerance
+                // A compact dot has no heading, but the selected train is always drawn in full.
+                || ((!compact || new.id == selectedTrainID) && old.bearing != new.bearing)
+                || old.isActive != new.isActive
+                // What the marker shows (see `displayedAt`) against what it should show now.
+                || old.isStale(at: displayedAt) != new.isStale(at: now)
+                || old.key != new.key
+                || old.displayNumber != new.displayNumber
+        }
     }
 
     /// Frames the selected train's route when it has no live position to zoom to instead — e.g. a
@@ -393,6 +451,26 @@ struct TrainMapView: View {
             result.append(selected)
         }
         return result
+    }
+}
+
+/// Runs `action` whenever `LiveTrainStore` merges a batch of positions. A modifier rather than an
+/// `onChange` in the caller's `body`: reading `updateCount` there re-renders the whole caller on
+/// every flush, several times a second — for `MapScreen` that is the map with all its annotations
+/// and the card presented from it. Here only this modifier's body is invalidated.
+private struct LiveTrainsUpdateObserver: ViewModifier {
+    @Environment(LiveTrainStore.self) private var live
+    let initial: Bool
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        content.onChange(of: live.updateCount, initial: initial) { action() }
+    }
+}
+
+extension View {
+    func onLiveTrainsUpdate(initial: Bool = false, perform action: @escaping () -> Void) -> some View {
+        modifier(LiveTrainsUpdateObserver(initial: initial, action: action))
     }
 }
 

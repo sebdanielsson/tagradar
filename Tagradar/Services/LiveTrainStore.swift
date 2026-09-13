@@ -195,6 +195,9 @@ final class LiveTrainStore {
 
     private func rebuild() {
         trains = positions.values.compactMap(LiveTrain.init).sorted { $0.id < $1.id }
-        trainCount = trains.count
+        // Guarded so an unchanged count doesn't notify the views that observe only this.
+        if trainCount != trains.count {
+            trainCount = trains.count
+        }
     }
 }
