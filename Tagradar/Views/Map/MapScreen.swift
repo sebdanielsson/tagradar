@@ -408,8 +408,10 @@ struct MapScreen: View {
         guard let fix, Date.now.timeIntervalSince(asked) < Self.launchFixTimeout,
               // The same radius as the "Near you" board, so the two agree on whether the user is
               // near the network. Farther away — Oslo, Turku, App Review in Cupertino — the map
-              // opens on `MapState.defaultRegion` rather than on an empty map around them.
-              stations.nearest(to: fix) != nil,
+              // opens on `MapState.defaultRegion` rather than on an empty map around them. An empty
+              // directory (a cache that didn't load, before the first refresh lands) can't tell,
+              // and nearly everyone using the app is in Sweden, so it counts as near.
+              !stations.isLoaded || stations.nearest(to: fix) != nil,
               mapState.camera == fallback, launchCameraIsUntouched else { return }
         withAnimation(.smooth) {
             mapState.camera = cameraFocusing(fix.coordinate, spanDegrees: Self.launchSpanDegrees)
