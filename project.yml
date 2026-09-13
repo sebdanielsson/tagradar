@@ -28,7 +28,7 @@ settings:
     # Groups are unique across teams and cannot be registered twice.
     TAGRADAR_BUNDLE_ID: "$(APP_BUNDLE_ID:default=se.tagradar.app)"
     # Bumped by release-please (see release-please-config.json); CI stamps the build number.
-    MARKETING_VERSION: 0.1.0 # x-release-please-version
+    MARKETING_VERSION: 1.0.0 # x-release-please-version
     CURRENT_PROJECT_VERSION: "1"
 configFiles:
   Debug: Config/Secrets.xcconfig
