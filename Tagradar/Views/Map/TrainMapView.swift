@@ -26,8 +26,8 @@ struct TrainMapView: View {
     /// second — only triggers a re-render when the filtered, on-screen set actually changes, instead
     /// of on every position update anywhere in Sweden.
     @State private var displayedTrains: [LiveTrain] = []
-    /// When `displayedTrains` was last replaced, so `looksDifferent` can tell whether a train has
-    /// gone stale since its marker was drawn — `isStale` itself is always relative to now.
+    /// When `displayedTrains` was last replaced. Markers are dimmed as stale as of this moment, not
+    /// as of whenever `body` last ran, so `looksDifferent` knows exactly what is on screen.
     @State private var displayedAt = Date.distantPast
     @State private var refreshTask: Task<Void, Never>?
     /// The selected journey's route, following real track geometry where possible, one entry per
@@ -90,6 +90,7 @@ struct TrainMapView: View {
                         severity: settings.colorMarkersByDelay ? delays.severity(for: train.key) : .unknown,
                         isSelected: train.id == selectedTrainID,
                         showLabel: showLabels,
+                        isStale: train.isStale(at: displayedAt),
                         compact: compactMarkers
                     )
                 } label: {
@@ -114,6 +115,8 @@ struct TrainMapView: View {
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
             mapSize = size
             refreshDisplayedStations()
+            // A new size is a new scale for `looksDifferent`, so apply it now, not on the next tick.
+            refreshDisplayedTrains()
         }
         .onLiveTrainsUpdate(initial: true) {
             scheduleRefresh()
@@ -167,10 +170,13 @@ struct TrainMapView: View {
     /// ~400 ms) only burns main-thread time without a visible benefit. Zoomed into a city or line,
     /// refresh at full speed.
     private var refreshInterval: Duration {
-        switch visibleRegion.span.latitudeDelta {
-        case 5...: .seconds(3)
-        case 3...: .milliseconds(1500)
-        default: Self.minRefreshInterval
+        let span = visibleRegion.span.latitudeDelta
+        return if span > 5 {
+            .seconds(3)
+        } else if span > 3 {
+            .milliseconds(1500)
+        } else {
+            Self.minRefreshInterval
         }
     }
 
@@ -292,6 +298,7 @@ struct TrainMapView: View {
                 // A compact dot has no heading, but the selected train is always drawn in full.
                 || ((!compact || new.id == selectedTrainID) && old.bearing != new.bearing)
                 || old.isActive != new.isActive
+                // What the marker shows (see `displayedAt`) against what it should show now.
                 || old.isStale(at: displayedAt) != new.isStale(at: now)
                 || old.key != new.key
                 || old.displayNumber != new.displayNumber

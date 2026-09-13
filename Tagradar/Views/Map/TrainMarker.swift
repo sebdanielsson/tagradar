@@ -6,6 +6,9 @@ struct TrainMarker: View {
     let severity: DelayIndex.Severity
     let isSelected: Bool
     let showLabel: Bool
+    /// Passed in rather than read from `train.isStale`, which depends on when `body` happens to run:
+    /// `TrainMapView` decides when a marker needs replacing, and this has to agree with it.
+    let isStale: Bool
     var compact = false
 
     private var color: Color {
@@ -20,7 +23,7 @@ struct TrainMarker: View {
                 .overlay { Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1.5) }
                 // No shadow: this is the zoomed-out dot, drawn for hundreds of trains at once, and
                 // a shadow per annotation costs an offscreen pass each while the map pans.
-                .opacity(train.isStale ? 0.55 : 1)
+                .opacity(isStale ? 0.55 : 1)
                 .accessibilityLabel(Text("Train \(train.displayNumber)"))
         } else {
             full
@@ -61,7 +64,7 @@ struct TrainMarker: View {
                     .glassEffect(.regular, in: .capsule)
             }
         }
-        .opacity(train.isStale ? 0.55 : 1)
+        .opacity(isStale ? 0.55 : 1)
         .animation(.snappy, value: isSelected)
         .accessibilityLabel(Text("Train \(train.displayNumber)"))
     }
