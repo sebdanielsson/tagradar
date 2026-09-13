@@ -10,7 +10,9 @@ struct MapScreen: View {
     @Environment(LiveTrainStore.self) private var live
     @Environment(StationDirectory.self) private var stations
     @Environment(AppNavigation.self) private var navigation
+    @Environment(LocationManager.self) private var location
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
 
     /// Camera, selection and the card's trail. Owned by `RootView` so they outlive this view when
     /// the size class changes — see `MapState`.
@@ -40,6 +42,8 @@ struct MapScreen: View {
                 compactLayout
             }
         }
+        // Keyed on the layout too: the framing depends on it, and a change mid-wait should start over.
+        .task(id: [scenePhase == .active, isRegular]) { await centerOnUserAtLaunch() }
         .onChange(of: mapState.selectedTrainID) { _, id in
             Self.logger.debug("selectedTrainID → \(id ?? "nil", privacy: .public)")
             guard let id, let train = live.train(id: id) else { return }
@@ -369,9 +373,75 @@ struct MapScreen: View {
         focus(on: key)
     }
 
+    /// Frames the launch camera: `MapState.defaultRegion` shifted clear of the iPhone card, then the
+    /// user's surroundings when location access was already granted and a station is nearby, at a
+    /// span that shows the trains around them. Never prompts. Each step gives way to anything that
+    /// moved the camera first — the user panning, or a deep link focusing a train or station.
+    ///
+    /// Only decided while the scene is active, since a background launch (app refresh, a background
+    /// `URLSession` wake-up) gets no fix. A run cancelled while waiting for one — the scene going
+    /// inactive (Control Center, the app switcher) or a size-class change — leaves the decision to
+    /// the next run, which frames the fallback for the layout it finds.
+    private func centerOnUserAtLaunch() async {
+        guard !mapState.didApplyLaunchCamera, scenePhase == .active else { return }
+        let region = MapState.defaultRegion
+        // The camera is still ours while it shows the default region, framed for either layout.
+        let ownFramings = [false, true].map {
+            cameraFocusing(region.center, spanDegrees: region.span.latitudeDelta, clearOfCard: $0)
+        }
+        guard ownFramings.contains(mapState.camera), launchCameraIsUntouched else {
+            mapState.didApplyLaunchCamera = true
+            return
+        }
+        let fallback = cameraFocusing(region.center, spanDegrees: region.span.latitudeDelta)
+        mapState.camera = fallback
+        guard location.isAuthorized else {
+            mapState.didApplyLaunchCamera = true
+            return
+        }
+        let asked = Date.now
+        let fix = await location.currentLocation()
+        guard !Task.isCancelled else { return }
+        mapState.didApplyLaunchCamera = true
+        // A slow fix lands while the user is already reading the card or searching, and moving the
+        // map under them then is a surprise rather than a convenience.
+        guard let fix, Date.now.timeIntervalSince(asked) < Self.launchFixTimeout,
+              // The same radius as the "Near you" board, so the two agree on whether the user is
+              // near the network. Farther away — Oslo, Turku, App Review in Cupertino — the map
+              // opens on `MapState.defaultRegion` rather than on an empty map around them. An empty
+              // directory (a cache that didn't load, before the first refresh lands) can't tell,
+              // and nearly everyone using the app is in Sweden, so it counts as near.
+              !stations.isLoaded || stations.nearest(to: fix) != nil,
+              mapState.camera == fallback, launchCameraIsUntouched else { return }
+        withAnimation(.smooth) {
+            mapState.camera = cameraFocusing(fix.coordinate, spanDegrees: Self.launchSpanDegrees)
+        }
+    }
+
+    /// Nothing has claimed the camera since launch: no pan, no selection, no deep link waiting.
+    private var launchCameraIsUntouched: Bool {
+        !mapState.camera.positionedByUser
+            && mapState.selectedTrainID == nil && mapState.selectedKey == nil && mapState.selectedStation == nil
+            && navigation.pendingMapFocus == nil && navigation.pendingStationSignature == nil
+    }
+
+    /// Around a city and its commuter lines: a few dozen trains rather than the whole country's.
+    private static let launchSpanDegrees: CLLocationDegrees = 1
+    /// How long a launch fix may take before the map stays where it is. A recent fix is returned
+    /// at once; a fresh one usually takes a second or two.
+    private static let launchFixTimeout: TimeInterval = 4
+
     /// Frames a coordinate; on iPhone the point is shifted up so the medium-height card does not cover it.
     private func cameraFocusing(_ coordinate: CLLocationCoordinate2D, spanDegrees: CLLocationDegrees) -> MapCameraPosition {
-        let offset = isRegular ? 0 : spanDegrees * 0.22
+        cameraFocusing(coordinate, spanDegrees: spanDegrees, clearOfCard: !isRegular)
+    }
+
+    private func cameraFocusing(
+        _ coordinate: CLLocationCoordinate2D,
+        spanDegrees: CLLocationDegrees,
+        clearOfCard: Bool
+    ) -> MapCameraPosition {
+        let offset = clearOfCard ? spanDegrees * 0.22 : 0
         let center = CLLocationCoordinate2D(latitude: coordinate.latitude - offset, longitude: coordinate.longitude)
         return .region(MKCoordinateRegion(center: center, span: MKCoordinateSpan(latitudeDelta: spanDegrees, longitudeDelta: spanDegrees)))
     }
