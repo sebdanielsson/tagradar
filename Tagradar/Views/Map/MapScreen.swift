@@ -10,6 +10,7 @@ struct MapScreen: View {
     @Environment(LiveTrainStore.self) private var live
     @Environment(StationDirectory.self) private var stations
     @Environment(AppNavigation.self) private var navigation
+    @Environment(LocationManager.self) private var location
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     /// Camera, selection and the card's trail. Owned by `RootView` so they outlive this view when
@@ -40,6 +41,7 @@ struct MapScreen: View {
                 compactLayout
             }
         }
+        .task { await centerOnUserAtLaunch() }
         .onChange(of: mapState.selectedTrainID) { _, id in
             Self.logger.debug("selectedTrainID → \(id ?? "nil", privacy: .public)")
             guard let id, let train = live.train(id: id) else { return }
@@ -368,6 +370,33 @@ struct MapScreen: View {
     private func select(_ key: TrainKey) {
         focus(on: key)
     }
+
+    /// Frames the launch camera: `MapState.defaultRegion` shifted clear of the iPhone card, then the
+    /// user's surroundings when location access was already granted, at a span that shows the trains
+    /// nearby. Never prompts. Each step gives way to anything that moved the camera first — the user
+    /// panning, or a deep link focusing a train or station.
+    private func centerOnUserAtLaunch() async {
+        guard !mapState.didApplyLaunchCamera else { return }
+        mapState.didApplyLaunchCamera = true
+        guard mapState.camera == .region(MapState.defaultRegion), launchCameraIsUntouched else { return }
+        let fallback = cameraFocusing(MapState.defaultRegion.center, spanDegrees: MapState.defaultRegion.span.latitudeDelta)
+        mapState.camera = fallback
+        guard location.isAuthorized, let fix = await location.currentLocation(),
+              mapState.camera == fallback, launchCameraIsUntouched else { return }
+        withAnimation(.smooth) {
+            mapState.camera = cameraFocusing(fix.coordinate, spanDegrees: Self.launchSpanDegrees)
+        }
+    }
+
+    /// Nothing has claimed the camera since launch: no pan, no selection, no deep link waiting.
+    private var launchCameraIsUntouched: Bool {
+        !mapState.camera.positionedByUser
+            && mapState.selectedTrainID == nil && mapState.selectedKey == nil && mapState.selectedStation == nil
+            && navigation.pendingMapFocus == nil && navigation.pendingStationSignature == nil
+    }
+
+    /// Around a city and its commuter lines: a few dozen trains rather than the whole country's.
+    private static let launchSpanDegrees: CLLocationDegrees = 1
 
     /// Frames a coordinate; on iPhone the point is shifted up so the medium-height card does not cover it.
     private func cameraFocusing(_ coordinate: CLLocationCoordinate2D, spanDegrees: CLLocationDegrees) -> MapCameraPosition {

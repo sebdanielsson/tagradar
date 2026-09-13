@@ -14,13 +14,20 @@ import TrafikverketKit
 @MainActor
 @Observable
 final class MapState {
-    static let swedenRegion = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 62.0, longitude: 16.0),
-        span: MKCoordinateSpan(latitudeDelta: 14.5, longitudeDelta: 14.5)
+    /// Where the map opens without a location: Stockholm–Västerås–Örebro. Not the whole country —
+    /// nearly every train runs in the south, so a national view draws all of them at once, and
+    /// hundreds of annotations are what makes panning and the card sluggish. `MapScreen` re-frames
+    /// it at launch so the iPhone card doesn't cover its centre.
+    static let defaultRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 59.4, longitude: 16.6),
+        span: MKCoordinateSpan(latitudeDelta: 4, longitudeDelta: 4)
     )
 
-    var camera: MapCameraPosition = .region(MapState.swedenRegion)
-    var visibleRegion: MKCoordinateRegion = MapState.swedenRegion
+    var camera: MapCameraPosition = .region(MapState.defaultRegion)
+    var visibleRegion: MKCoordinateRegion = MapState.defaultRegion
+    /// Set once the launch camera has been decided (see `MapScreen.centerOnUserAtLaunch`), so a
+    /// rebuilt `MapScreen` doesn't pull the camera back to the user mid-session.
+    var didApplyLaunchCamera = false
     var selectedTrainID: String?
     var selectedKey: TrainKey?
     var selectedStation: TrainStation?
