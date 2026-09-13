@@ -406,17 +406,15 @@ struct MapScreen: View {
         // A slow fix lands while the user is already reading the card or searching, and moving the
         // map under them then is a surprise rather than a convenience.
         guard let fix, Date.now.timeIntervalSince(asked) < Self.launchFixTimeout,
-              stations.nearest(to: fix, maxDistance: Self.launchMaxStationDistance) != nil,
+              // The same radius as the "Near you" board, so the two agree on whether the user is
+              // near the network. Farther away — Oslo, Turku, App Review in Cupertino — the map
+              // opens on `MapState.defaultRegion` rather than on an empty map around them.
+              stations.nearest(to: fix) != nil,
               mapState.camera == fallback, launchCameraIsUntouched else { return }
         withAnimation(.smooth) {
             mapState.camera = cameraFocusing(fix.coordinate, spanDegrees: Self.launchSpanDegrees)
         }
     }
-
-    /// How close a station has to be for the map to open around the user: about half the launch
-    /// span, so one is in view. Farther away — Oslo, Turku, App Review in Cupertino, or deep in the
-    /// fjäll — the map opens on `MapState.defaultRegion` rather than on an empty map around them.
-    private static let launchMaxStationDistance: CLLocationDistance = 50000
 
     /// Nothing has claimed the camera since launch: no pan, no selection, no deep link waiting.
     private var launchCameraIsUntouched: Bool {
