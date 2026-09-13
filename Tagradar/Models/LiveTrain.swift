@@ -54,7 +54,11 @@ struct LiveTrain: Identifiable, Hashable, Sendable {
     }
 
     var isStale: Bool {
+        isStale(at: .now)
+    }
+
+    func isStale(at date: Date) -> Bool {
         guard let timestamp else { return true }
-        return Date.now.timeIntervalSince(timestamp) > 10 * 60
+        return date.timeIntervalSince(timestamp) > 10 * 60
     }
 }

@@ -26,6 +26,9 @@ struct TrainMapView: View {
     /// second — only triggers a re-render when the filtered, on-screen set actually changes, instead
     /// of on every position update anywhere in Sweden.
     @State private var displayedTrains: [LiveTrain] = []
+    /// When `displayedTrains` was last replaced, so `looksDifferent` can tell whether a train has
+    /// gone stale since its marker was drawn — `isStale` itself is always relative to now.
+    @State private var displayedAt = Date.distantPast
     @State private var refreshTask: Task<Void, Never>?
     /// The selected journey's route, following real track geometry where possible, one entry per
     /// leg between consecutive stops so `routeOverlay` can colour a cancelled leg differently.
@@ -87,7 +90,7 @@ struct TrainMapView: View {
                         severity: settings.colorMarkersByDelay ? delays.severity(for: train.key) : .unknown,
                         isSelected: train.id == selectedTrainID,
                         showLabel: showLabels,
-                        compact: visibleRegion.span.latitudeDelta > 5
+                        compact: compactMarkers
                     )
                 } label: {
                     Text(train.displayNumber)
@@ -102,6 +105,9 @@ struct TrainMapView: View {
         }
         .onMapCameraChange(frequency: .onEnd) { context in
             visibleRegion = context.region
+            // This refreshes right away, and a task still sleeping out a zoomed-out interval would
+            // otherwise hold off the next live update for that long after zooming in.
+            cancelRefresh()
             refreshDisplayedTrains()
             refreshDisplayedStations()
         }
@@ -113,7 +119,10 @@ struct TrainMapView: View {
             scheduleRefresh()
         }
         .onDisappear {
-            refreshTask?.cancel()
+            cancelRefresh()
+        }
+        .onChange(of: settings.showInactiveTrains) { _, _ in
+            refreshDisplayedTrains()
         }
         .onChange(of: selectedKey) { _, _ in
             fitCameraToRouteIfNeeded()
@@ -171,10 +180,21 @@ struct TrainMapView: View {
         guard refreshTask == nil else { return }
         refreshTask = Task {
             try? await Task.sleep(for: refreshInterval)
-            refreshTask = nil
+            // Before clearing `refreshTask`: a cancelled task's slot may already hold its successor.
             guard !Task.isCancelled else { return }
+            refreshTask = nil
             refreshDisplayedTrains()
         }
+    }
+
+    private func cancelRefresh() {
+        refreshTask?.cancel()
+        refreshTask = nil
+    }
+
+    /// Zoomed out this far, trains are drawn as plain dots without a heading.
+    private var compactMarkers: Bool {
+        visibleRegion.span.latitudeDelta > 5
     }
 
     /// Everything `refreshDisplayedStations` depends on apart from the camera (which is handled in
@@ -247,8 +267,9 @@ struct TrainMapView: View {
     /// when it actually changed, so an update elsewhere in the country doesn't re-render this map.
     private func refreshDisplayedTrains() {
         let next = visibleTrains
-        guard next != displayedTrains, looksDifferent(next) else { return }
+        guard looksDifferent(next) else { return }
         displayedTrains = next
+        displayedAt = .now
         delays.track(next.compactMap(\.key))
     }
 
@@ -257,16 +278,21 @@ struct TrainMapView: View {
     /// re-rendering hundreds of annotations for them is what makes panning stutter. Compared against
     /// what is displayed rather than the previous update, so slow drift still lands once it adds up.
     private func looksDifferent(_ next: [LiveTrain]) -> Bool {
-        guard next.count == displayedTrains.count, mapSize.width > 0, mapSize.height > 0 else { return true }
+        guard next.count == displayedTrains.count else { return true }
+        // Before the first layout there is no scale to judge a move by.
+        guard mapSize.width > 0, mapSize.height > 0 else { return next != displayedTrains }
         let latTolerance = visibleRegion.span.latitudeDelta / mapSize.height
         let lonTolerance = visibleRegion.span.longitudeDelta / mapSize.width
+        let compact = compactMarkers
+        let now = Date.now
         return zip(displayedTrains, next).contains { old, new in
             old.id != new.id
                 || abs(old.coordinate.latitude - new.coordinate.latitude) >= latTolerance
                 || abs(old.coordinate.longitude - new.coordinate.longitude) >= lonTolerance
-                || old.bearing != new.bearing
+                // A compact dot has no heading, but the selected train is always drawn in full.
+                || ((!compact || new.id == selectedTrainID) && old.bearing != new.bearing)
                 || old.isActive != new.isActive
-                || old.isStale != new.isStale
+                || old.isStale(at: displayedAt) != new.isStale(at: now)
                 || old.key != new.key
                 || old.displayNumber != new.displayNumber
         }
