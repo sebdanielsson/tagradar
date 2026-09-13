@@ -2,7 +2,7 @@
   "sourceLanguage" : "en",
   "strings" : {
     "NSLocationWhenInUseUsageDescription" : {
-      "comment" : "Permission alert shown the first time the map is centred on the user.",
+      "comment" : "Permission alert shown when the user first taps the map's location button or allows location for the \"Near you\" departures.",
       "localizations" : {
         "sv" : {
           "stringUnit" : {

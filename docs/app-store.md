@@ -96,7 +96,7 @@ Left sidebar → App Privacy. This one genuinely cannot be automated, and a miss
 That answer is accurate and worth being able to defend, because the app does touch location, microphone and speech:
 
 - There is no backend and no analytics, so no data reaches the developer by any path.
-- Location is used on the device to centre the map and never leaves it.
+- Location is used on the device to centre the map and to find the nearest station for "Near you"; the position never leaves the device. Only that station's signature goes to Trafikverket, in the same departure-board request as for any station the user opens.
 - Microphone audio and speech recognition are handled by Apple's own services under Apple's privacy terms; the app stores no recordings. Apple's questionnaire asks what *you* collect, not what the system does on the user's behalf.
 - Trafikverket receives anonymous API requests carrying train numbers, station signatures and an API key — nothing that identifies the user.
 
