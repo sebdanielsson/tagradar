@@ -73,7 +73,7 @@ struct MapScreen: View {
             startFreshTrail()
             focus(on: station)
         }
-        .onChange(of: live.updateCount) { _, _ in
+        .onLiveTrainsUpdate {
             if let key = navigation.pendingMapFocus {
                 startFreshTrail()
                 focus(on: key)
@@ -158,7 +158,7 @@ struct MapScreen: View {
             .ignoresSafeArea(edges: .top)
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack {
-                    StatusPill(state: live.state, count: live.trainCount, lastUpdate: live.lastUpdate)
+                    StatusPill()
                     Spacer()
                 }
                 .padding(.horizontal)
@@ -283,7 +283,7 @@ struct MapScreen: View {
             }
             .buttonStyle(.glass)
             .labelStyle(.iconOnly)
-            StatusPill(state: live.state, count: live.trainCount, lastUpdate: live.lastUpdate)
+            StatusPill()
             Spacer()
             MapControlsCluster(camera: $mapState.camera)
         }

@@ -2,9 +2,13 @@ import SwiftUI
 
 /// Small live/connection indicator shown on the map.
 struct StatusPill: View {
-    var state: LiveTrainStore.ConnectionState
-    var count: Int
-    var lastUpdate: Date?
+    /// Read here rather than passed in, so only the pill depends on the store: a caller reading it
+    /// in its own `body` would re-render along with every position update.
+    @Environment(LiveTrainStore.self) private var live
+
+    private var state: LiveTrainStore.ConnectionState {
+        live.state
+    }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -42,7 +46,7 @@ struct StatusPill: View {
         switch state {
         case .idle: String(localized: "Paused")
         case .connecting: String(localized: "Connecting…")
-        case .streaming, .polling: String(localized: "\(count) trains live")
+        case .streaming, .polling: String(localized: "\(live.trainCount) trains live")
         case .failed: String(localized: "Offline")
         }
     }

@@ -18,7 +18,8 @@ struct TrainMarker: View {
                 .fill(color.gradient)
                 .frame(width: 11, height: 11)
                 .overlay { Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1.5) }
-                .shadow(color: .black.opacity(0.2), radius: 1, y: 0.5)
+                // No shadow: this is the zoomed-out dot, drawn for hundreds of trains at once, and
+                // a shadow per annotation costs an offscreen pass each while the map pans.
                 .opacity(train.isStale ? 0.55 : 1)
                 .accessibilityLabel(Text("Train \(train.displayNumber)"))
         } else {
