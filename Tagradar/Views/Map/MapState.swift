@@ -26,7 +26,8 @@ final class MapState {
     var camera: MapCameraPosition = .region(MapState.defaultRegion)
     var visibleRegion: MKCoordinateRegion = MapState.defaultRegion
     /// Set once the launch camera has been decided (see `MapScreen.centerOnUserAtLaunch`), so a
-    /// rebuilt `MapScreen` doesn't pull the camera back to the user mid-session.
+    /// rebuilt `MapScreen` doesn't pull the camera back to the user mid-session. Per window, like
+    /// the rest of this state: a new iPad window opens around the user too.
     var didApplyLaunchCamera = false
     var selectedTrainID: String?
     var selectedKey: TrainKey?

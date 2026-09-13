@@ -215,6 +215,8 @@ for DEVICE in "${DEVICES[@]}"; do
   xcrun simctl install "$UDID" "$APP"
   # No permission alert in the middle of a capture.
   xcrun simctl privacy "$UDID" grant location "$BUNDLE_ID" >/dev/null 2>&1 || true
+  # The map opens around the user, so put them at Stockholm C rather than the simulator's default.
+  xcrun simctl location "$UDID" set 59.3303,18.0584 >/dev/null 2>&1 || true
   # The status bar Apple uses in its own screenshots.
   xcrun simctl status_bar "$UDID" override \
     --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 >/dev/null 2>&1 || true
