@@ -14,7 +14,8 @@ import TrafikverketKit
 @MainActor
 @Observable
 final class MapState {
-    /// Where the map opens without a location: Stockholm–Västerås–Örebro. Not the whole country —
+    /// Where the map opens unless it opens around the user (see `MapScreen.centerOnUserAtLaunch`):
+    /// Stockholm–Västerås–Örebro. Not the whole country —
     /// nearly every train runs in the south, so a national view draws all of them at once, and
     /// hundreds of annotations are what makes panning and the card sluggish. `MapScreen` re-frames
     /// it at launch so the iPhone card doesn't cover its centre.
@@ -27,7 +28,7 @@ final class MapState {
     var visibleRegion: MKCoordinateRegion = MapState.defaultRegion
     /// Set once the launch camera has been decided (see `MapScreen.centerOnUserAtLaunch`), so a
     /// rebuilt `MapScreen` doesn't pull the camera back to the user mid-session. Per window, like
-    /// the rest of this state: a new iPad window opens around the user too.
+    /// the rest of this state: a new iPad window decides its own launch camera.
     var didApplyLaunchCamera = false
     var selectedTrainID: String?
     var selectedKey: TrainKey?

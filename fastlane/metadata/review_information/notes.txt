@@ -1,11 +1,11 @@
 Tågradar shows public railway data from Trafikverket (the Swedish Transport Administration) Open API. Everything in the app is reachable without an account: there is no sign-in, and the API key is built into the binary, so no demo credentials are needed.
 
 Where to find each feature:
-• Map — opens on launch over the Stockholm region, or around the user when location access is allowed and they are in Sweden, and shows every train currently reporting a GPS position. Zoom out to see the whole country. Tap a train to open its timetable; tap a station dot for its departure board. Trains only run in Sweden, so the map is empty outside Swedish hours of operation (roughly 04:00–01:00 Central European Time).
+• Map — opens on launch over Lake Mälaren (Stockholm–Västerås–Örebro), or around the user when location access is allowed and a Swedish railway station is nearby, and shows every train currently reporting a GPS position. Zoom out to see the whole country. Tap a train to open its timetable; tap a station dot for its departure board. Trains only run in Sweden, so the map is empty outside Swedish hours of operation (roughly 04:00–01:00 Central European Time).
 • Search — the bar on the bottom card (iPhone) or at the top of the sidebar (iPad). Enter a train number, for example 560, or a station name, for example Stockholm.
 • Saved trains, notifications and Live Activity — open any train and tap the star to save it. Delay, cancellation, track-change and arrival alerts are then generated on the device from the API data; there is no push server. The Live Activity starts from the "Follow" button on the same screen.
 • Widgets — long-press the Home Screen, add a Tågradar widget, and pick a saved train or a station.
 
-Location access is optional and only centres the map on the user; the app works fully without it. Microphone and speech recognition are used only for the voice search button in the search bar.
+Location access is optional and is only used to centre the map on the user and to find the nearest station for the "Near you" departure board; the app works fully without it. Microphone and speech recognition are used only for the voice search button in the search bar.
 
 The app is not affiliated with Trafikverket. Their data is published under CC0 and the name appears only as an attribution of the data source.
