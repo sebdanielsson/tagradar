@@ -49,10 +49,10 @@ jobs:
             runner: macos-26
           - language: actions
             build-mode: none
-            runner: ubuntu-latest
+            runner: ubuntu-26.04-arm
           - language: python
             build-mode: none
-            runner: ubuntu-latest
+            runner: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@v7.0.1
 
