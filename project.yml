@@ -2,8 +2,8 @@ name: Tagradar
 options:
   bundleIdPrefix: se.tagradar
   deploymentTarget:
-    iOS: "26.0"
-  xcodeVersion: "26.0"
+    iOS: "26.5"
+  xcodeVersion: "27.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
   groupSortPosition: top

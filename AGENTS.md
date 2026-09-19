@@ -1,6 +1,6 @@
 # Tågradar — repo notes for AI assistants
 
-- Native SwiftUI app, iOS 26+, Swift 6 strict concurrency. No third-party packages. Only Trafikverket's open data as data sources: the live Open API, plus NJDB track geometry bundled offline as `Tagradar/Resources/RailNetwork.json` (see `docs/rail-network.md`).
+- Native SwiftUI app, iOS 26.5+ built with the iOS 27 SDK (Xcode 27), Swift 6 strict concurrency. No third-party packages. Only Trafikverket's open data as data sources: the live Open API, plus NJDB track geometry bundled offline as `Tagradar/Resources/RailNetwork.json` (see `docs/rail-network.md`).
 - The Xcode project is generated: edit `project.yml`, then run `xcodegen` (or `Scripts/bootstrap.sh`). Never commit `Tagradar.xcodeproj`.
 - API key: `.env.local` → `Scripts/bootstrap.sh` → `Config/Secrets.xcconfig` → `Info.plist` key `TRVAPIKey`. Users can override in Settings (Keychain). Never commit keys.
 - `Packages/TrafikverketKit` is platform-agnostic and testable with `swift test`. App-level logic tests live in `TagradarTests`.
