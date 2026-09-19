@@ -51,7 +51,9 @@ fi
 
 APP=$(find "$DERIVED/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name "Tagradar.app" | head -1)
 xcrun simctl boot "$UDID" 2>/dev/null || true
-open -a Simulator --args -CurrentDeviceUDID "$UDID" >/dev/null 2>&1 || true
+# Xcode 27 replaced Simulator.app with DeviceHub.app.
+open -a Simulator --args -CurrentDeviceUDID "$UDID" >/dev/null 2>&1 \
+  || open -a "${DEVELOPER_DIR:-$(xcode-select -p)}/../Applications/DeviceHub.app" >/dev/null 2>&1 || true
 xcrun simctl bootstatus "$UDID" -b >/dev/null
 xcrun simctl install "$UDID" "$APP"
 if [ -f .env.local ]; then
