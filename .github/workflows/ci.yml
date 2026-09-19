@@ -33,13 +33,13 @@ permissions:
 jobs:
   verify:
     name: Verify
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7.0.1
 
       # Independent checks share one runner instead of three. SwiftFormat and xcbeautify are preinstalled on
-      # the macos-26 image; SwiftLint and XcodeGen are not.
+      # the xcode-27 image; SwiftLint and XcodeGen are not.
       - parallel:
           - name: SwiftFormat (check only)
             run: swiftformat --lint .
@@ -84,7 +84,7 @@ jobs:
       github.repository == 'sebdanielsson/tagradar' &&
       ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
        (github.event_name == 'workflow_dispatch' && inputs.testflight))
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 60
     environment: testflight
     concurrency:
@@ -184,7 +184,7 @@ jobs:
     name: App Store
     needs: [verify, release-please]
     if: needs.release-please.outputs.release_created == 'true'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 90
     environment: app-store
     concurrency:
