@@ -18,7 +18,7 @@ body:
     id: device
     attributes:
       label: Device and iOS version
-      placeholder: "iPhone 17 Pro, iOS 26.1"
+      placeholder: "iPhone 17 Pro, iOS 26.5"
     validations:
       required: true
   - type: textarea

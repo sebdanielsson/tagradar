@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Prints an xcodebuild -destination for an iPhone simulator that exists on this machine.
 #
-# GitHub's macos-26 runners sometimes hand out a machine where CoreSimulator has not registered its
-# device set yet, and `-destination 'platform=iOS Simulator,name=iPhone 17 Pro'` then fails with
-# "Unable to find a device matching the provided destination specifier" — the same image passes on
-# the next run. Waiting for the device set and addressing the simulator by UDID avoids that race,
-# and the fallback covers an image that ships a runtime but no devices.
+# GitHub's macOS runners (first seen on macos-26) sometimes hand out a machine where CoreSimulator
+# has not registered its device set yet, and `-destination 'platform=iOS Simulator,name=iPhone 17 Pro'`
+# then fails with "Unable to find a device matching the provided destination specifier" — the same
+# image passes on the next run. Waiting for the device set and addressing the simulator by UDID avoids
+# that race, and the fallback covers an image that ships a runtime but no devices. The xcode-27 image
+# has no iPhone 17 Pro, so there the newest iPhone on the newest runtime is used.
 set -euo pipefail
 
 command -v jq >/dev/null || { echo "::error::jq is required by $0." >&2; exit 1; }
