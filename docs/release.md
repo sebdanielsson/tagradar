@@ -15,7 +15,7 @@ push / PR ──▶ verify (lint, format, tests, simulator build)
                                   └──▶ appstore  archive → upload → metadata + screenshots → submit for review
 ```
 
-- **Every push to `main`** produces a TestFlight build. Internal testers see it after Apple's processing; the build number is the workflow run number, the version is `version.txt`.
+- **Every push to `main`** produces a TestFlight build. Internal testers see it after Apple's processing; the build number is the workflow run number, the version is `version.txt`. The App Store build from a release run gets `<run number>.<run attempt>` (for example `202.1`), because the TestFlight job of that same run, which runs in parallel, also uploads the release version, as build `<run number>`; the suffix keeps the two uploads from colliding whichever finishes first.
 - **Releases** are driven by [release-please](https://github.com/googleapis/release-please). It reads the commit messages on `main` and maintains a release pull request that bumps `version.txt`, `project.yml` (`MARKETING_VERSION`) and `CHANGELOG.md`. Merging that PR creates the tag and the GitHub release, and the same workflow run then submits the tagged build to App Store Review.
 - After Apple approves, **release it manually** in App Store Connect (the workflow sets `automatic_release: false`), so the store listing and the GitHub release can go out together.
 
