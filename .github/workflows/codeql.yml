@@ -44,9 +44,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Swift stays on macos-26 (Xcode 26.x) while the app itself builds with Xcode 27: CodeQL
+          # 2.27 does not support Xcode 27's Swift compiler yet, and on the xcode-27 image's macOS 27.0
+          # release its build tracer breaks SwiftPM's manifest sandbox ("Bad CPU type in executable"
+          # when spawning sandbox-exec). The code still compiles with the iOS 26.5 SDK. Move back to
+          # xcode-27 once a CodeQL release lists Xcode 27's Swift version as supported.
           - language: swift
             build-mode: manual
-            runner: xcode-27
+            runner: macos-26
           - language: actions
             build-mode: none
             runner: ubuntu-26.04-arm
