@@ -222,10 +222,11 @@ jobs:
           DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPMENT_CERTIFICATE_PASSWORD }}
         run: Scripts/ci/import-signing-certificate.sh
 
-      # The release commit is also a push to main, so the testflight job in this same run has already
-      # uploaded this version as build <run_number>. App Store Connect rejects a second upload with the
-      # same version and build (ITMS-90189), so this job appends the run attempt: 202 → 202.1, which
-      # stays unique on a re-run (202.2) and still sorts below the next run's TestFlight build (203).
+      # The release commit is also a push to main, so the testflight job in this same run uploads this
+      # version too, as build <run_number>, in parallel with this job. App Store Connect rejects a second
+      # upload with the same version and build (ITMS-90189), whichever lands first, so this job appends
+      # the run attempt: 202 → 202.1, which stays unique on a re-run (202.2) and still sorts below the
+      # next run's TestFlight build (203).
       - name: Archive
         env:
           ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
