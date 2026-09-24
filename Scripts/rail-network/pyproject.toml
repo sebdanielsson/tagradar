@@ -2,7 +2,7 @@
 name = "rail-network"
 version = "0"
 description = "Offline pipeline turning Trafikverket's NJDB GeoPackage into Tagradar's bundled RailNetwork.json"
-requires-python = ">=3.14"
+requires-python = ">=3.14.7"
 dependencies = ["networkx>=3.5", "pyproj>=3.7", "shapely>=2.1"]
 
 # Scripts, not a package: `uv run build_graph.py` sets up the environment from this file.
