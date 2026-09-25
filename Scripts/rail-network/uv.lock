@@ -132,7 +132,7 @@ dependencies = [
 requires-dist = [
     { name = "networkx", specifier = ">=3.7" },
     { name = "pyproj", specifier = ">=3.8.0" },
-    { name = "shapely", specifier = ">=2.1" },
+    { name = "shapely", specifier = ">=2.1.2" },
 ]
 
 [[package]]
