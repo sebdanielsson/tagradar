@@ -2,6 +2,15 @@
 
 Releases are cut by [release-please](https://github.com/googleapis/release-please) from [Conventional Commits](https://www.conventionalcommits.org/) on `main`; new sections are added above this one automatically. The project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.1](https://github.com/sebdanielsson/tagradar/compare/v1.0.0...v1.0.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **deps:** update dependency networkx to &gt;=3.7 ([#43](https://github.com/sebdanielsson/tagradar/issues/43)) ([8072b5d](https://github.com/sebdanielsson/tagradar/commit/8072b5dfdb10125408ead72ae2a0b378fc757392))
+* **deps:** update dependency pyproj to &gt;=3.8.0 ([#40](https://github.com/sebdanielsson/tagradar/issues/40)) ([dedc8a8](https://github.com/sebdanielsson/tagradar/commit/dedc8a8626ab84c7a92332fcf601970b28aae3be))
+* **deps:** update dependency shapely to &gt;=2.1.2 ([#41](https://github.com/sebdanielsson/tagradar/issues/41)) ([752d95f](https://github.com/sebdanielsson/tagradar/commit/752d95f44b6282cec0aebe88cc9fdaa2647c4345))
+
 ## [1.0.0](https://github.com/sebdanielsson/tagradar/compare/v0.1.0...v1.0.0) (2026-09-19)
 
 
