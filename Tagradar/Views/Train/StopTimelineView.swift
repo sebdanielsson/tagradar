@@ -15,7 +15,8 @@ struct StopTimelineView: View {
                     name: stations.name(stop.signature),
                     isFirst: index == 0,
                     isLast: index == journey.stops.count - 1,
-                    isNext: journey.nextStop?.id == stop.id
+                    isNext: journey.nextStop?.id == stop.id,
+                    composition: changedComposition(at: index)
                 )
             }
         }
@@ -23,6 +24,14 @@ struct StopTimelineView: View {
 }
 
 extension StopTimelineView {
+    /// Car order mostly stays the same along a run, so it is shown only where it differs from the
+    /// last stop that had one.
+    private func changedComposition(at index: Int) -> [String] {
+        let current = journey.stops[index].composition
+        let previous = journey.stops[..<index].last { !$0.composition.isEmpty }?.composition
+        return current == previous ? [] : current
+    }
+
     /// Column captions, aligned with the time cells in every row.
     private var columnHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: StopRow.columnSpacing) {
@@ -51,6 +60,7 @@ private struct StopRow: View {
     let isFirst: Bool
     let isLast: Bool
     let isNext: Bool
+    let composition: [String]
     @State private var expanded = false
 
     /// Matches the stop circle's plain .secondary fill: a translucent line lets the busy, blurred
@@ -93,6 +103,13 @@ private struct StopRow: View {
                     if isNext {
                         Text("Next stop").font(.caption2.weight(.semibold)).foregroundStyle(Color.accentColor)
                     }
+                }
+                ForEach(composition, id: \.self) { note in
+                    Label(note, systemImage: "train.side.middle.car")
+                        .labelStyle(.compactIcon)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if !stop.deviations.isEmpty || !stop.otherInformation.isEmpty {
                     let visibleInfo = expanded ? stop.otherInformation : Array(stop.otherInformation.prefix(Self.inlineInfoCount))
@@ -164,8 +181,8 @@ private struct StopRow: View {
             .monospacedDigit()
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .opacity(announcement.advertised == false ? 0.55 : 1)
-            .accessibilityHint(announcement.advertised == false ? Text("Not advertised") : Text(""))
+            .opacity(announcement.isPassengerActivity ? 1 : 0.55)
+            .accessibilityHint(announcement.isPassengerActivity ? Text("") : Text("Not advertised"))
         } else {
             Text("–")
                 .font(.callout)

@@ -30,7 +30,7 @@ struct AnnouncementRow: View {
                         .lineLimit(1)
                 }
                 HStack(spacing: 6) {
-                    if let product = announcement.productInformation?.first?.description {
+                    if let product = announcement.displayProduct {
                         Text(product)
                     }
                     if let ident = announcement.advertisedTrainIdent {

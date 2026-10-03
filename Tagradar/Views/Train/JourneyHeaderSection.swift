@@ -11,14 +11,18 @@ struct JourneyHeaderSection: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(journey.productName ?? journey.typeOfTraffic ?? String(localized: "Train"))
+                        Text(title)
                             .font(.headline)
-                        if let op = journey.operatorName {
+                        if let op = journey.operatorName.map(OperatorName.display), op != title {
                             Text(op).font(.subheadline).foregroundStyle(.secondary)
                         }
                     }
                     Spacer()
                     statusBadge
+                }
+
+                if let stock = journey.rollingStock {
+                    RollingStockView(stock: stock)
                 }
 
                 HStack(alignment: .top, spacing: 12) {
@@ -56,6 +60,11 @@ struct JourneyHeaderSection: View {
             }
             .padding(.vertical, 4)
         }
+    }
+
+    /// Product (or operator, see `TrainJourney.productName`), else the traffic type.
+    private var title: String {
+        journey.productName ?? journey.typeOfTraffic ?? String(localized: "Train")
     }
 
     @ViewBuilder

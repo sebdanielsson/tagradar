@@ -57,7 +57,7 @@ struct TrainService: Sendable {
 
     private func announcements(ident: String, day: String) async throws -> [TrainAnnouncement] {
         let result = try await client.fetch(Self.announcementsQuery(ident: ident, day: day))
-        // Non-advertised rows are passing points (no passenger stop) but carry actual times, so keep them.
+        // Most non-advertised rows are passing points (see `isPassengerActivity`) but carry actual times, so keep them.
         return result.objects.filter { !($0.deleted ?? false) }
     }
 
@@ -77,7 +77,7 @@ struct TrainService: Sendable {
             .filter(
                 .equal("ActivityType", "Avgang"),
                 .equal("LocationSignature", signature),
-                .equal("Advertised", true),
+                .passengerActivity,
                 .greaterThanOrEqual("AdvertisedTimeAtLocation", date: start),
                 .lessThan("AdvertisedTimeAtLocation", date: end)
             )
@@ -94,7 +94,7 @@ struct TrainService: Sendable {
             .filter(
                 .equal("ActivityType", "Ankomst"),
                 .equal("LocationSignature", signature),
-                .equal("Advertised", true),
+                .passengerActivity,
                 .greaterThanOrEqual("AdvertisedTimeAtLocation", date: start),
                 .lessThan("AdvertisedTimeAtLocation", date: end)
             )
@@ -128,4 +128,12 @@ struct TrainService: Sendable {
     private static func normalized(_ text: String) -> String {
         text.lowercased().filter { !$0.isWhitespace && !$0.isPunctuation }
     }
+}
+
+extension Filter {
+    /// Server-side `TrainAnnouncement.isPassengerActivity`.
+    static let passengerActivity: Filter = .or([
+        .equal("Advertised", true),
+        .in("Operator", TrainAnnouncement.unadvertisedPassengerOperators),
+    ])
 }
