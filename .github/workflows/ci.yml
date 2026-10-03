@@ -30,6 +30,12 @@ concurrency:
 permissions:
   contents: read
 
+# Every Xcode job builds against the iOS 27.1 SDK (iPhone Duo APIs). The xcode-27 image still defaults to
+# Xcode 27.0, so pin 27.1 instead of relying on the default. Its Xcode_27.1 is build 27A9275, the GA build,
+# which App Store Connect accepts. Drop the pin once the image's default is 27.1 or later.
+env:
+  DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+
 jobs:
   verify:
     name: Verify
@@ -37,6 +43,13 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7.0.1
+
+      # The image installs no iOS 27.1 simulator runtime, and the iPhone Duo device type only exists on it.
+      # Downloads while the checks below run.
+      - name: Download iOS 27.1 simulator runtime
+        id: ios-runtime
+        background: true
+        run: xcodebuild -downloadPlatform iOS
 
       # Independent checks share one runner instead of three. SwiftFormat and xcbeautify are preinstalled on
       # the xcode-27 image; SwiftLint and XcodeGen are not.
@@ -60,6 +73,9 @@ jobs:
           mkdir -p Config
           printf 'TRV_API_KEY =\nDEVELOPMENT_TEAM =\n' > Config/Secrets.xcconfig
           xcodegen generate --quiet
+
+      - name: iOS 27.1 simulator runtime (result)
+        wait: [ios-runtime]
 
       # The destination is resolved at run time: naming the simulator fails at random on runners
       # whose CoreSimulator has not registered its device set yet (Scripts/ci/simulator-destination.sh).
