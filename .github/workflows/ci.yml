@@ -79,19 +79,65 @@ jobs:
 
   testflight:
     name: TestFlight
-    needs: verify
+    # After release-please, so the release PR already includes this push (see "Resolve version"). Only
+    # verify has to pass: release-please is skipped on workflow_dispatch and must not block uploads.
+    needs: [verify, release-please]
     if: >-
+      !cancelled() && needs.verify.result == 'success' &&
       github.repository == 'sebdanielsson/tagradar' &&
       ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
        (github.event_name == 'workflow_dispatch' && inputs.testflight))
     runs-on: xcode-27
     timeout-minutes: 60
     environment: testflight
+    permissions:
+      contents: read
+      pull-requests: read
     concurrency:
       group: testflight-upload
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7.0.1
+
+      # App Store Connect closes a version to new builds once it is approved, and version.txt on main
+      # keeps the released version until the next release PR is merged. So builds take the version
+      # that PR will ship. Without one (only ci/docs/chore commits since the release) a released
+      # version.txt is bumped a patch: TestFlight accepts any higher version, and the next release
+      # ends up at least that high. The release run itself keeps the version it releases.
+      - name: Resolve version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_CREATED: ${{ needs.release-please.outputs.release_created }}
+        run: |
+          version=$(cat version.txt)
+          if [ "$RELEASE_CREATED" = true ]; then
+            # Checked first: runs on main overlap, and a later push may already have opened the next
+            # release PR by now.
+            echo "This run released $version."
+          else
+            branch=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --state open \
+              --label 'autorelease: pending' --json headRefName --jq '.[0].headRefName // empty')
+            if [ -n "$branch" ]; then
+              version=$(gh api "repos/$GITHUB_REPOSITORY/contents/version.txt?ref=$branch" \
+                -H 'Accept: application/vnd.github.raw')
+              echo "Using $version from the release PR ($branch)."
+            else
+              # --exit-code: 0 tag exists, 2 no such tag, anything else is a failed lookup.
+              rc=0
+              git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null || rc=$?
+              case $rc in
+                0)
+                  version=$(echo "$version" | awk -F. '{ print $1 "." $2 "." $3 + 1 }')
+                  echo "v$(cat version.txt) is released and no release PR is open; using $version."
+                  ;;
+                2) ;;
+                *) echo "::error::git ls-remote failed with exit code $rc"; exit 1 ;;
+              esac
+            fi
+          fi
+          [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Unexpected version '$version'"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Install XcodeGen
         run: brew install --quiet xcodegen
@@ -131,6 +177,7 @@ jobs:
         env:
           ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -o pipefail
           xcodebuild archive \
@@ -141,13 +188,14 @@ jobs:
             -authenticationKeyPath "$ASC_KEY_PATH" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            MARKETING_VERSION="$(cat version.txt)" \
+            MARKETING_VERSION="$VERSION" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" | xcbeautify --renderer github-actions
 
       - name: Export and upload to TestFlight
         env:
           ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Tagradar.xcarchive" \
@@ -157,7 +205,7 @@ jobs:
             -authenticationKeyPath "$ASC_KEY_PATH" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID"
-          echo "Uploaded Tågradar $(cat version.txt) (build ${{ github.run_number }}) to TestFlight." >> "$GITHUB_STEP_SUMMARY"
+          echo "Uploaded Tågradar $VERSION (build ${{ github.run_number }}) to TestFlight." >> "$GITHUB_STEP_SUMMARY"
 
   release-please:
     name: Release PR
