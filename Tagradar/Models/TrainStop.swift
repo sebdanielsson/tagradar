@@ -72,6 +72,14 @@ struct TrainStop: Identifiable, Hashable, Sendable {
         unique((arrival?.otherInformation ?? []) + (departure?.otherInformation ?? []))
     }
 
+    /// Car order and similar notes for this platform; they change along a run, e.g. when it reverses.
+    var composition: [String] {
+        // Some stops carry it on the arrival row only (seen for SJ 30 at Mdn).
+        let departureNotes = departure?.trainComposition ?? []
+        let notes = departureNotes.isEmpty ? arrival?.trainComposition ?? [] : departureNotes
+        return unique(notes).compactMap(\.description)
+    }
+
     private func unique(_ items: [CodeDescription]) -> [CodeDescription] {
         var seen = Set<String>()
         return items.filter { item in

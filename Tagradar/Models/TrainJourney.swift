@@ -27,7 +27,7 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
     // MARK: Derived summary
 
     private var representative: TrainAnnouncement? {
-        announcements.first { $0.activityType == .departure && ($0.advertised ?? true) } ?? announcements.first
+        announcements.first { $0.activityType == .departure && $0.isPassengerActivity } ?? announcements.first
     }
 
     /// Latest place the train was reported at, including passing points that are not passenger stops.
@@ -47,11 +47,20 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
     }
 
     var productName: String? {
+        representative?.displayProduct
+    }
+
+    private var product: String? {
         representative?.productInformation?.compactMap(\.description).first
     }
 
     var operatorName: String? {
         representative?.operator ?? representative?.trainOwner
+    }
+
+    /// Vehicle type, for the products the curated table is sure about.
+    var rollingStock: RollingStock? {
+        RollingStock(product: product, operator: representative?.operator, typeOfTraffic: typeOfTraffic)
     }
 
     var informationOwner: String? {
@@ -157,13 +166,13 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
 
     // MARK: Building
 
-    /// Stops are the stations with at least one advertised activity. A missing arrival or departure
-    /// at such a station is filled from a non-advertised row when one exists (e.g. drop-off-only stops),
-    /// so both columns can be shown; the view renders those muted.
+    /// Stops are the stations with at least one passenger activity (see `isPassengerActivity`). A
+    /// missing arrival or departure at such a station is filled from another row when one exists
+    /// (e.g. drop-off-only stops), so both columns can be shown; the view renders those muted.
     static func buildStops(from announcements: [TrainAnnouncement]) -> [TrainStop] {
         var byStation: [String: TrainStop] = [:]
         var order: [String] = []
-        for a in announcements where a.advertised ?? true {
+        for a in announcements where a.isPassengerActivity {
             guard let sig = a.locationSignature else { continue }
             if byStation[sig] == nil {
                 byStation[sig] = TrainStop(signature: sig)
@@ -175,7 +184,7 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
             case nil: break
             }
         }
-        for a in announcements where a.advertised == false {
+        for a in announcements where !a.isPassengerActivity {
             guard let sig = a.locationSignature, var stop = byStation[sig] else { continue }
             switch a.activityType {
             case .arrival where stop.arrival == nil: stop.arrival = a
@@ -192,5 +201,27 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
             default: false
             }
         }
+    }
+}
+
+extension TrainAnnouncement {
+    /// Operators that publish every row unadvertised although their trains carry passengers.
+    static let unadvertisedPassengerOperators = ["ATRAIN"]
+
+    /// Whether a passenger can board or alight here. Other unadvertised rows are passing points.
+    var isPassengerActivity: Bool {
+        (advertised ?? true) || isUnadvertisedPassengerOperator
+    }
+
+    /// The product, or for those operators (which publish none) the operator's name.
+    var displayProduct: String? {
+        if let product = productInformation?.compactMap(\.description).first {
+            return product
+        }
+        return isUnadvertisedPassengerOperator ? `operator`.map(OperatorName.display) : nil
+    }
+
+    private var isUnadvertisedPassengerOperator: Bool {
+        `operator`.map(Self.unadvertisedPassengerOperators.contains) ?? false
     }
 }

@@ -1710,6 +1710,16 @@
         }
       }
     },
+    "Train type: %@, %@": {
+      "localizations": {
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tågtyp: %1$@, %2$@"
+          }
+        }
+      }
+    },
     "Train's first station": {
       "localizations": {
         "sv": {

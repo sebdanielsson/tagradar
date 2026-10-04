@@ -7,7 +7,8 @@ import TrafikverketKit
 struct TrainJourneyTests {
     private func announcement(
         id: String, type: TrainAnnouncement.ActivityType, station: String, advertised: String,
-        estimated: String? = nil, actual: String? = nil, canceled: Bool = false
+        estimated: String? = nil, actual: String? = nil, canceled: Bool = false, isAdvertised: Bool? = nil,
+        composition: String? = nil, product: String? = "SJ Snabbtåg", operator operatorCode: String? = nil
     ) throws -> TrainAnnouncement {
         var json: [String: Any] = [
             "ActivityId": id,
@@ -17,9 +18,20 @@ struct TrainJourneyTests {
             "AdvertisedTrainIdent": "520",
             "Canceled": canceled,
             "ScheduledDepartureDateTime": "2026-09-02T00:00:00.000+02:00",
-            "ProductInformation": [["Code": "PNA047", "Description": "SJ Snabbtåg"]],
             "ToLocation": [["LocationName": "G", "Order": 0, "Priority": 1]],
         ]
+        if let product {
+            json["ProductInformation"] = [["Code": "PNA047", "Description": product]]
+        }
+        if let operatorCode {
+            json["Operator"] = operatorCode
+        }
+        if let composition {
+            json["TrainComposition"] = [["Code": "TNA001", "Description": composition]]
+        }
+        if let isAdvertised {
+            json["Advertised"] = isAdvertised
+        }
         if let estimated {
             json["EstimatedTimeAtLocation"] = "2026-09-02T\(estimated):00.000+02:00"
         }
@@ -49,6 +61,71 @@ struct TrainJourneyTests {
         #expect(journey.origin?.isOrigin == true)
         #expect(journey.destination?.isTerminus == true)
         #expect(journey.stops[1].arrival != nil && journey.stops[1].departure != nil)
+    }
+
+    @Test func arlandaExpressRowsAreStops() throws {
+        /// Arlanda Express publishes every row with Advertised = false and no product.
+        func row(_ id: String, _ type: TrainAnnouncement.ActivityType, _ station: String, _ time: String) throws -> TrainAnnouncement {
+            try announcement(
+                id: id, type: type, station: station, advertised: time, isAdvertised: false, product: nil, operator: "ATRAIN"
+            )
+        }
+        let rows = try [
+            row("1", .departure, "Arnn", "06:20"),
+            row("2", .arrival, "Arns", "06:22"),
+            row("3", .departure, "Arns", "06:22"),
+            row("4", .arrival, "Cst", "06:40"),
+        ]
+        let journey = try TrainJourney(
+            key: TrainKey(ident: "7909", departureDate: #require(rows[0].scheduledDepartureDateTime)),
+            announcements: rows
+        )
+        #expect(journey.stops.map(\.signature) == ["Arnn", "Arns", "Cst"])
+        #expect(journey.productName == "Arlanda Express")
+        #expect(journey.rollingStock == .x3)
+    }
+
+    @Test func otherUnadvertisedRunsHaveNoStops() throws {
+        // E.g. SJ positioning runs: every row is a passing point.
+        let rows = try [
+            announcement(id: "1", type: .departure, station: "Av", advertised: "06:20", isAdvertised: false, product: nil, operator: "SJ"),
+            announcement(id: "2", type: .arrival, station: "Cst", advertised: "08:20", isAdvertised: false, product: nil, operator: "SJ"),
+        ]
+        let journey = try TrainJourney(
+            key: TrainKey(ident: "502", departureDate: #require(rows[0].scheduledDepartureDateTime)),
+            announcements: rows
+        )
+        #expect(journey.stops.isEmpty)
+        // Only operators without products fall back to their name; others keep stored products.
+        #expect(journey.productName == nil)
+    }
+
+    @Test func passingPointsStayOffAdvertisedRuns() throws {
+        let rows = try [
+            announcement(id: "1", type: .departure, station: "Cst", advertised: "06:21"),
+            announcement(id: "2", type: .departure, station: "Sod", advertised: "06:30", isAdvertised: false),
+            announcement(id: "3", type: .arrival, station: "G", advertised: "09:20"),
+        ]
+        let journey = try TrainJourney(
+            key: TrainKey(ident: "520", departureDate: #require(rows[0].scheduledDepartureDateTime)),
+            announcements: rows
+        )
+        #expect(journey.stops.map(\.signature) == ["Cst", "G"])
+    }
+
+    @Test func compositionFallsBackToArrivalRow() throws {
+        // SJ 30 at Mdn carries the car order on its arrival row only.
+        let rows = try [
+            announcement(id: "1", type: .arrival, station: "Mdn", advertised: "06:20", composition: "Vagnsordning 15,14,13"),
+            announcement(id: "2", type: .departure, station: "Mdn", advertised: "06:25"),
+            announcement(id: "3", type: .arrival, station: "Cst", advertised: "06:40", composition: "A"),
+            announcement(id: "4", type: .departure, station: "Cst", advertised: "06:45", composition: "B"),
+        ]
+        let journey = try TrainJourney(
+            key: TrainKey(ident: "30", departureDate: #require(rows[0].scheduledDepartureDateTime)),
+            announcements: rows
+        )
+        #expect(journey.stops.map(\.composition) == [["Vagnsordning 15,14,13"], ["B"]])
     }
 
     @Test func derivesStatusAndDelay() throws {

@@ -82,7 +82,7 @@ final class DelayIndex {
                 .in("AdvertisedTrainIdent", idents),
                 .greaterThanOrEqual("ScheduledDepartureDateTime", "\(day)T00:00:00"),
                 .lessThan("ScheduledDepartureDateTime", "\(day)T23:59:59"),
-                .equal("Advertised", true),
+                .passengerActivity,
                 .greaterThan("AdvertisedTimeAtLocation", "$dateadd(-0.01:30:00)")
             )
             .include(
