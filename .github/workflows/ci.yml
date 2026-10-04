@@ -111,24 +111,30 @@ jobs:
           RELEASE_CREATED: ${{ needs.release-please.outputs.release_created }}
         run: |
           version=$(cat version.txt)
-          branch=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --state open \
-            --label 'autorelease: pending' --json headRefName --jq '.[0].headRefName // empty')
-          if [ -n "$branch" ]; then
-            version=$(gh api "repos/$GITHUB_REPOSITORY/contents/version.txt?ref=$branch" \
-              -H 'Accept: application/vnd.github.raw')
-            echo "Using $version from the release PR ($branch)."
-          elif [ "$RELEASE_CREATED" != true ]; then
-            # --exit-code: 0 tag exists, 2 no such tag, anything else is a failed lookup.
-            rc=0
-            git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null || rc=$?
-            case $rc in
-              0)
-                version=$(echo "$version" | awk -F. '{ print $1 "." $2 "." $3 + 1 }')
-                echo "v$(cat version.txt) is released and no release PR is open; using $version."
-                ;;
-              2) ;;
-              *) echo "::error::git ls-remote failed with exit code $rc"; exit 1 ;;
-            esac
+          if [ "$RELEASE_CREATED" = true ]; then
+            # Checked first: runs on main overlap, and a later push may already have opened the next
+            # release PR by now.
+            echo "This run released $version."
+          else
+            branch=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --state open \
+              --label 'autorelease: pending' --json headRefName --jq '.[0].headRefName // empty')
+            if [ -n "$branch" ]; then
+              version=$(gh api "repos/$GITHUB_REPOSITORY/contents/version.txt?ref=$branch" \
+                -H 'Accept: application/vnd.github.raw')
+              echo "Using $version from the release PR ($branch)."
+            else
+              # --exit-code: 0 tag exists, 2 no such tag, anything else is a failed lookup.
+              rc=0
+              git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null || rc=$?
+              case $rc in
+                0)
+                  version=$(echo "$version" | awk -F. '{ print $1 "." $2 "." $3 + 1 }')
+                  echo "v$(cat version.txt) is released and no release PR is open; using $version."
+                  ;;
+                2) ;;
+                *) echo "::error::git ls-remote failed with exit code $rc"; exit 1 ;;
+              esac
+            fi
           fi
           [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Unexpected version '$version'"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
