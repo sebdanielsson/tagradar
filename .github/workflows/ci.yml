@@ -325,7 +325,7 @@ jobs:
           VERSION: ${{ needs.release-please.outputs.version }}
         run: fastlane release ipa:"$RUNNER_TEMP/export/Tagradar.ipa" version:"$VERSION"
 
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: Tagradar-${{ needs.release-please.outputs.tag_name }}
           path: |
