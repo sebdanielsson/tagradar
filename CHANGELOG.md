@@ -2,6 +2,14 @@
 
 Releases are cut by [release-please](https://github.com/googleapis/release-please) from [Conventional Commits](https://www.conventionalcommits.org/) on `main`; new sections are added above this one automatically. The project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.1](https://github.com/sebdanielsson/tagradar/compare/v1.1.0...v1.1.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* **deps:** update dependency shapely to &gt;=2.2.0 ([#47](https://github.com/sebdanielsson/tagradar/issues/47)) ([31ab682](https://github.com/sebdanielsson/tagradar/commit/31ab682e21ec52c947d12995bd0bf309d45dcc90))
+* frame the full route when opening a train without a live position ([#51](https://github.com/sebdanielsson/tagradar/issues/51)) ([2ae536f](https://github.com/sebdanielsson/tagradar/commit/2ae536fff3b1092ce3920cf701440c123b368c22))
+
 ## [1.1.0](https://github.com/sebdanielsson/tagradar/compare/v1.0.0...v1.1.0) (2026-10-04)
 
 
