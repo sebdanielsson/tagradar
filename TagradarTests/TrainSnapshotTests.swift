@@ -269,3 +269,42 @@ struct ActivityRefreshIntervalTests {
         #expect(interval(.canceled) == nil)
     }
 }
+
+@Suite("Live Activity trip ends")
+struct ActivityTripEndsTests {
+    @Test("Stops picked after following reach the activity through the state")
+    func segmentPickedAfterFollowing() throws {
+        let journey = try SampleRun.lateFromOriginRecoveringLater()
+        let attributes = TrainActivityAttributes(snapshot: TrainSnapshot(journey: journey), names: .empty)
+        let state = TrainActivityAttributes.ContentState(
+            snapshot: TrainSnapshot(journey: journey, segment: TripSegment(boarding: "U", alighting: "Gä")),
+            names: .empty
+        )
+        #expect(attributes.destinationName == "Suc")
+        #expect(attributes.origin(state) == "U")
+        #expect(attributes.destination(state) == "Gä")
+        #expect(Format.clock(attributes.scheduledDeparture(state)) == "10:42")
+        #expect(Format.clock(attributes.scheduledArrival(state)) == "11:30")
+    }
+
+    @Test("An unknown time for a picked stop stays unknown; only an older state falls back")
+    func timeFallback() throws {
+        let journey = try SampleRun.lateFromOriginRecoveringLater()
+        let attributes = TrainActivityAttributes(snapshot: TrainSnapshot(journey: journey), names: .empty)
+        var state = TrainActivityAttributes.ContentState(
+            snapshot: TrainSnapshot(journey: journey, segment: TripSegment(boarding: "U", alighting: "Gä")),
+            names: .empty
+        )
+        state.scheduledDeparture = nil
+        state.scheduledArrival = nil
+        #expect(attributes.scheduledDeparture(state) == nil)
+        #expect(attributes.scheduledArrival(state) == nil)
+
+        state.originName = nil
+        state.destinationName = nil
+        #expect(attributes.origin(state) == "Cst")
+        #expect(attributes.destination(state) == "Suc")
+        #expect(Format.clock(attributes.scheduledDeparture(state)) == "10:00")
+        #expect(Format.clock(attributes.scheduledArrival(state)) == "13:00")
+    }
+}
