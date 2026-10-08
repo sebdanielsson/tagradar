@@ -113,12 +113,16 @@ struct TrainActivityAttributes: ActivityAttributes {
         state.destinationName ?? destinationName
     }
 
+    // A state that names its ends owns their times too, even unknown ones: falling back would show
+    // the time of the stop followed with, not the one picked since. Only a state from an older build,
+    // which has no names, takes them from the attributes.
+
     func scheduledDeparture(_ state: ContentState) -> Date? {
-        state.scheduledDeparture ?? scheduledDeparture
+        state.originName == nil ? scheduledDeparture : state.scheduledDeparture
     }
 
     func scheduledArrival(_ state: ContentState) -> Date? {
-        state.scheduledArrival ?? scheduledArrival
+        state.destinationName == nil ? scheduledArrival : state.scheduledArrival
     }
 
     var title: String {

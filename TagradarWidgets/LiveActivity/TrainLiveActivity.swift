@@ -171,7 +171,11 @@ private struct NextStopLine: View {
                 }
             case .scheduled:
                 Text("Departs").font(.caption).foregroundStyle(.secondary)
-                TimePair(planned: attributes.scheduledDeparture(state), expected: state.expectedDeparture, font: .subheadline.weight(.semibold))
+                TimePair(
+                    planned: attributes.scheduledDeparture(state),
+                    expected: state.expectedDeparture,
+                    font: .subheadline.weight(.semibold)
+                )
                 TrackChip(track: state.originTrack, compact: true)
             }
             Spacer(minLength: 0)
