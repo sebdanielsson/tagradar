@@ -133,6 +133,11 @@ struct TrainMapView: View {
         .onChange(of: journeys.cached(selectedKey)) { _, _ in
             fitCameraToRouteIfNeeded()
         }
+        // The journey can arrive before the station directory does; without stop coordinates the
+        // fit has nothing to frame and the camera would stay wherever it was.
+        .onChange(of: stations.revision) { _, _ in
+            fitCameraToRouteIfNeeded()
+        }
         .onChange(of: stationInputs, initial: true) { _, _ in
             refreshDisplayedStations()
         }
@@ -312,8 +317,7 @@ struct TrainMapView: View {
     private func fitCameraToRouteIfNeeded() {
         guard let selectedKey, live.train(for: selectedKey) == nil,
               let journey = journeys.cached(selectedKey) else { return }
-        let coordinates = journey.stops.compactMap { stations.station($0.signature)?.coordinate }
-            .map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+        let coordinates = journey.stops.compactMap { stopAnchor(for: $0.signature) }
         guard let region = MKCoordinateRegion(fitting: coordinates) else { return }
         withAnimation(.smooth) { camera = .region(region) }
     }
