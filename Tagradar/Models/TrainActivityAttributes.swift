@@ -20,6 +20,13 @@ struct TrainActivityAttributes: ActivityAttributes {
         var expectedDeparture: Date?
         var expectedArrival: Date?
         var originTrack: String?
+        /// The trip's ends — the boarding and alighting stops when the user picked them. Carried in
+        /// the state because the attributes are fixed when following starts, and the stops can be
+        /// picked or changed after that. Optional so a state from an older build still decodes.
+        var originName: String?
+        var destinationName: String?
+        var scheduledDeparture: Date?
+        var scheduledArrival: Date?
         /// 0…1 share of the stops already passed.
         var progress: Double
         var updatedAt: Date
@@ -62,6 +69,10 @@ struct TrainActivityAttributes: ActivityAttributes {
             expectedDeparture = snapshot.expectedDeparture
             expectedArrival = snapshot.expectedArrival
             originTrack = snapshot.originTrack
+            originName = names.name(snapshot.originSignature)
+            destinationName = names.name(snapshot.destinationSignature)
+            scheduledDeparture = snapshot.scheduledDeparture
+            scheduledArrival = snapshot.scheduledArrival
             progress = snapshot.progress
             updatedAt = snapshot.updatedAt ?? .now
             upcoming = snapshot.upcomingStops.prefix(3).map {
@@ -90,6 +101,24 @@ struct TrainActivityAttributes: ActivityAttributes {
 
     var deepLink: URL {
         URL(string: "tagradar://train/\(trainID)")!
+    }
+
+    // The trip's ends as they stand now, falling back to those at follow time; see `ContentState.originName`.
+
+    func origin(_ state: ContentState) -> String {
+        state.originName ?? originName
+    }
+
+    func destination(_ state: ContentState) -> String {
+        state.destinationName ?? destinationName
+    }
+
+    func scheduledDeparture(_ state: ContentState) -> Date? {
+        state.scheduledDeparture ?? scheduledDeparture
+    }
+
+    func scheduledArrival(_ state: ContentState) -> Date? {
+        state.scheduledArrival ?? scheduledArrival
     }
 
     var title: String {

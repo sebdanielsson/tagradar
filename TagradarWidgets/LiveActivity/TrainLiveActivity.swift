@@ -25,7 +25,7 @@ struct TrainLiveActivity: Widget {
                     StatusBadge(state: context.state)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text("\(context.attributes.originName) → \(context.attributes.destinationName)")
+                    Text("\(context.attributes.origin(context.state)) → \(context.attributes.destination(context.state))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -70,7 +70,7 @@ private struct LockScreenTrainView: View {
                 Spacer()
                 StatusBadge(state: context.state)
             }
-            Text("\(context.attributes.originName) → \(context.attributes.destinationName)")
+            Text("\(context.attributes.origin(context.state)) → \(context.attributes.destination(context.state))")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -153,7 +153,7 @@ private struct NextStopLine: View {
             case .canceled:
                 Text("The train is canceled.").font(.subheadline)
             case .arrived:
-                Text("Arrived \(attributes.destinationName) \(Format.clock(state.expectedArrival))").font(.subheadline)
+                Text("Arrived \(attributes.destination(state)) \(Format.clock(state.expectedArrival))").font(.subheadline)
             case .enRoute:
                 if let next = state.nextStopName {
                     Text("Next").font(.caption).foregroundStyle(.secondary)
@@ -171,7 +171,7 @@ private struct NextStopLine: View {
                 }
             case .scheduled:
                 Text("Departs").font(.caption).foregroundStyle(.secondary)
-                TimePair(planned: attributes.scheduledDeparture, expected: state.expectedDeparture, font: .subheadline.weight(.semibold))
+                TimePair(planned: attributes.scheduledDeparture(state), expected: state.expectedDeparture, font: .subheadline.weight(.semibold))
                 TrackChip(track: state.originTrack, compact: true)
             }
             Spacer(minLength: 0)
@@ -196,7 +196,7 @@ private struct JourneyProgress: View {
             if state.status != .canceled {
                 HStack(spacing: 3) {
                     Image(systemName: "flag.checkered").font(.caption2)
-                    Text(Format.clock(state.expectedArrival ?? attributes.scheduledArrival))
+                    Text(Format.clock(state.expectedArrival ?? attributes.scheduledArrival(state)))
                         .font(.caption.weight(.medium))
                         .monospacedDigit()
                 }

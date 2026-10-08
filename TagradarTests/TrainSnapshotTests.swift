@@ -269,3 +269,21 @@ struct ActivityRefreshIntervalTests {
         #expect(interval(.canceled) == nil)
     }
 }
+
+@Suite("Live Activity trip ends")
+struct ActivityTripEndsTests {
+    @Test("Stops picked after following reach the activity through the state")
+    func segmentPickedAfterFollowing() throws {
+        let journey = try SampleRun.lateFromOriginRecoveringLater()
+        let attributes = TrainActivityAttributes(snapshot: TrainSnapshot(journey: journey), names: .empty)
+        let state = TrainActivityAttributes.ContentState(
+            snapshot: TrainSnapshot(journey: journey, segment: TripSegment(boarding: "U", alighting: "Gä")),
+            names: .empty
+        )
+        #expect(attributes.destinationName == "Suc")
+        #expect(attributes.origin(state) == "U")
+        #expect(attributes.destination(state) == "Gä")
+        #expect(Format.clock(attributes.scheduledDeparture(state)) == "10:42")
+        #expect(Format.clock(attributes.scheduledArrival(state)) == "11:30")
+    }
+}
