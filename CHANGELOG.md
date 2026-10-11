@@ -2,6 +2,21 @@
 
 Releases are cut by [release-please](https://github.com/googleapis/release-please) from [Conventional Commits](https://www.conventionalcommits.org/) on `main`; new sections are added above this one automatically. The project uses [Semantic Versioning](https://semver.org/).
 
+## [1.2.0](https://github.com/sebdanielsson/tagradar/compare/v1.1.0...v1.2.0) (2026-10-11)
+
+
+### Features
+
+* keep Live Activities current with ActivityKit push updates ([#58](https://github.com/sebdanielsson/tagradar/issues/58)) ([011ebe6](https://github.com/sebdanielsson/tagradar/commit/011ebe6c15f368712ec462a7af6b2eb6bb980dcd))
+* make the selected train easy to spot on the map ([#64](https://github.com/sebdanielsson/tagradar/issues/64)) ([2ef4155](https://github.com/sebdanielsson/tagradar/commit/2ef4155cb1f2dbd57f759205e8b0e14f6f8d8f93))
+
+
+### Bug Fixes
+
+* **deps:** update dependency shapely to &gt;=2.2.0 ([#47](https://github.com/sebdanielsson/tagradar/issues/47)) ([31ab682](https://github.com/sebdanielsson/tagradar/commit/31ab682e21ec52c947d12995bd0bf309d45dcc90))
+* frame the full route when opening a train without a live position ([#51](https://github.com/sebdanielsson/tagradar/issues/51)) ([2ae536f](https://github.com/sebdanielsson/tagradar/commit/2ae536fff3b1092ce3920cf701440c123b368c22))
+* show the picked trip ends in the Live Activity ([#52](https://github.com/sebdanielsson/tagradar/issues/52)) ([7377837](https://github.com/sebdanielsson/tagradar/commit/7377837f76a40ee7ed24180df64eeff77001d2a5))
+
 ## [1.1.0](https://github.com/sebdanielsson/tagradar/compare/v1.0.0...v1.1.0) (2026-10-04)
 
 
