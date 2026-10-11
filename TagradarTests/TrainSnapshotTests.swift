@@ -212,7 +212,7 @@ struct TrainAlertEngineTests {
     }
 }
 
-@Suite("Live Activity background cadence")
+@Suite("Live Activity refresh cadence")
 struct ActivityRefreshIntervalTests {
     private let now = Date(timeIntervalSince1970: 1_788_000_000)
 
@@ -224,39 +224,17 @@ struct ActivityRefreshIntervalTests {
     }
 
     private func interval(_ status: TrainJourney.Status, departureIn: TimeInterval = 0) -> TimeInterval? {
-        ActivityBackgroundRefresher.interval(for: state(status: status, departureIn: departureIn), now: now)
+        LiveActivityController.refreshInterval(for: state(status: status, departureIn: departureIn), now: now)
     }
 
-    @Test("The pre-scheduled horizon covers the trip a minute at a time and stops after arrival")
-    func horizon() throws {
-        var snapshot = TrainSnapshot(favorite: FavoriteTrain(key: SampleRun.key, journey: nil))
-        snapshot.status = .enRoute
-        snapshot.expectedDeparture = now.addingTimeInterval(-30 * 60)
-        snapshot.expectedArrival = now.addingTimeInterval(40 * 60)
-        let dates = ActivityBackgroundRefresher.pollDates(
-            for: TrainActivityAttributes.ContentState(snapshot: snapshot, names: .empty),
-            now: now
-        )
-        #expect(dates.first == now.addingTimeInterval(60))
-        #expect(dates.count == 65, "40 min to arrival plus 25 min grace, one per minute")
-        #expect(try #require(dates.last) <= now.addingTimeInterval(65 * 60))
-
-        var waiting = TrainSnapshot(favorite: FavoriteTrain(key: SampleRun.key, journey: nil))
-        waiting.status = .scheduled
-        waiting.expectedDeparture = now.addingTimeInterval(2 * 3600)
-        waiting.expectedArrival = now.addingTimeInterval(3 * 3600)
-        let sparse = ActivityBackgroundRefresher.pollDates(
-            for: TrainActivityAttributes.ContentState(snapshot: waiting, names: .empty),
-            now: now
-        )
-        #expect(sparse.first == now.addingTimeInterval(30 * 60), "a quarter of the wait when far away")
-        #expect(sparse.count < 120)
-        #expect(sparse.count > 60, "still one a minute once the train is running")
-
-        var done = snapshot
-        done.status = .arrived
-        #expect(ActivityBackgroundRefresher.pollDates(for: TrainActivityAttributes.ContentState(snapshot: done, names: .empty), now: now)
-            .isEmpty)
+    @Test("A finished trip leaves the Lock Screen five minutes after arriving, a cancellation later")
+    func dismissal() {
+        var arrived = state(status: .arrived)
+        arrived.expectedArrival = now.addingTimeInterval(-60)
+        #expect(LiveActivityController.dismissal(for: arrived, now: now) == now.addingTimeInterval(4 * 60))
+        arrived.expectedArrival = now.addingTimeInterval(-20 * 60)
+        #expect(LiveActivityController.dismissal(for: arrived, now: now) == now)
+        #expect(LiveActivityController.dismissal(for: state(status: .canceled), now: now) == now.addingTimeInterval(15 * 60))
     }
 
     @Test("Once a minute while running, slower while waiting, off when done")

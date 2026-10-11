@@ -12,12 +12,12 @@ Tågradar is a native iOS and iPadOS app that shows every train in Sweden live o
 - **Train details**: every station on the run with planned, estimated and actual times, track, delay, deviations ("Spårändrat", "Buss ersätter", …), on-board services, the operator's link and the live speed, heading and position age.
 - **Search** by train number on any date, or browse a station's departure and arrival board.
 - **Saved trains**: pin an upcoming trip and see its status at a glance. Optionally set where you board and get off, and everything below only looks at that part of the run. Saved trains are stored on-device with SwiftData.
-- **Notifications** for saved trains: delays of five minutes or more, cancellations, track changes, arrival and a reminder 30 minutes before departure, with a map of the train's position attached. Alerts are generated on the device; there is no server. While the app is open it checks every 30 seconds, in the background iOS decides how often the app may refresh (typically every 15 minutes or more), so alerts can arrive late.
-- **Live Activities**: follow a train and see its next stop, delay and progress on the Lock Screen and in the Dynamic Island. The countdown and progress bar run on their own, and while the train is moving the activity is refreshed about once a minute in the background through short network wake-ups (no server involved); iOS may space them out on a poor connection.
+- **Notifications** for saved trains: delays of five minutes or more, cancellations, track changes, arrival and a reminder 30 minutes before departure, with a map of the train's position attached. While the app is open it checks every 30 seconds. For a followed train the push server sends the alerts along with its Live Activity, as plain text without the map; for other saved trains iOS decides how often the app may refresh in the background (typically every 15 minutes or more), so those alerts can arrive late.
+- **Live Activities**: follow a train and see its next stop, delay and progress on the Lock Screen and in the Dynamic Island. The countdown and progress bar run on their own, and a small push server (`server/`, see [docs/live-activity-push.md](docs/live-activity-push.md)) keeps the activity current through ActivityKit push updates, about once a minute while the train runs.
 - **Widgets** for the Home Screen and Lock Screen: one saved train (or always the next one), and the departure board of a station of your choice.
 - **Traffic messages** from Trafikverket that affect the stations on your train's route.
 - **iPhone and iPad** layouts. On iPhone the map fills the screen and an Apple Maps-style bottom card holds search, saved trains, quick access to stations and the train and station details. On iPad the same card is a sidebar beside the full-size map, with every upcoming saved train and every quick station (starred, recent, then the big hubs) rather than the phone's shortened lists, and a train or station opens in an inspector on the other side. Any other station is reached through search.
-- Built with SwiftUI, MapKit and the iOS 26 Liquid Glass design language. No third-party dependencies, no analytics, no tracking.
+- Built with SwiftUI, MapKit and the iOS 26 Liquid Glass design language. No third-party dependencies in the app, no analytics, no tracking.
 
 ## Requirements
 
@@ -70,6 +70,7 @@ TagradarWidgets/          WidgetKit extension: saved-train and departures widget
 fastlane/                  Store metadata (en-US, sv), screenshots and the App Store submission lane
 Marketing/                 Flattened icon PNGs
 Packages/TrafikverketKit/  Typed client for the Trafikverket Open API (request builder, models, SSE)
+server/                    Push server for Live Activities (TypeScript on Vercel)
 project.yml                XcodeGen spec
 ```
 

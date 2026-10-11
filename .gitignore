@@ -27,6 +27,8 @@ Config/Secrets.xcconfig
 
 # Tooling
 .claude/
+# Vercel CLI link for the push server (vercel deploy from the repo root)
+.vercel/
 *.log
 
 # fastlane

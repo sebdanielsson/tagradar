@@ -200,6 +200,18 @@
         }
       }
     },
+    "Arrived %@ %@, %@ min late.": {
+      "comment": "Live Activity push alert from the push server (server/src/alerts.ts); every argument is a string.",
+      "extractionState": "manual",
+      "localizations": {
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ankom %@ %@, %@ min sen."
+          }
+        }
+      }
+    },
     "Arrived %@ %@, %lld min late.": {
       "localizations": {
         "sv": {
@@ -986,6 +998,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notiser är avstängda för Tågradar. Slå på dem i Inställningar."
+          }
+        }
+      }
+    },
+    "Now %@ min late.": {
+      "comment": "Live Activity push alert from the push server (server/src/alerts.ts); every argument is a string.",
+      "extractionState": "manual",
+      "localizations": {
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nu %@ min sen."
+          }
+        }
+      }
+    },
+    "Now %@ min late. Arrives %@.": {
+      "comment": "Live Activity push alert from the push server (server/src/alerts.ts); every argument is a string.",
+      "extractionState": "manual",
+      "localizations": {
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nu %@ min sen. Ankommer %@."
+          }
+        }
+      }
+    },
+    "Now %@ min late. New departure %@ from %@.": {
+      "comment": "Live Activity push alert from the push server (server/src/alerts.ts); every argument is a string.",
+      "extractionState": "manual",
+      "localizations": {
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nu %@ min sen. Ny avgång %@ från %@."
+          }
+        }
+      }
+    },
+    "Now %@ min late. Next %@ %@.": {
+      "comment": "Live Activity push alert from the push server (server/src/alerts.ts); every argument is a string.",
+      "extractionState": "manual",
+      "localizations": {
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nu %@ min sen. Nästa %@ %@."
           }
         }
       }
@@ -1780,12 +1840,12 @@
         }
       }
     },
-    "Tågradar tells you about delays of five minutes or more, cancellations, track changes and arrival for saved trains, plus a reminder 30 minutes before departure. Set your own stops on a saved train to only hear about changes that affect them. While the app is open it checks every 30 seconds. A followed train's Live Activity keeps refreshing about once a minute in the background while the train runs; alerts and widgets refresh when iOS allows, usually every 15 minutes or more, so they can lag behind.": {
+    "Tågradar tells you about delays of five minutes or more, cancellations, track changes and arrival for saved trains, plus a reminder 30 minutes before departure. Set your own stops on a saved train to only hear about changes that affect them. While the app is open it checks every 30 seconds. A followed train's Live Activity is kept up to date by Tågradar's server, which also sends that train's alerts; other alerts and widgets refresh when iOS allows, usually every 15 minutes or more, so they can lag behind.": {
       "localizations": {
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tågradar berättar om förseningar på fem minuter eller mer, inställda tåg, spårändringar och ankomst för sparade tåg, samt påminner 30 minuter före avgång. Ange dina egna stationer på ett sparat tåg för att bara få veta om ändringar som påverkar dem. När appen är öppen kontrolleras tågen var 30:e sekund. Live Activity för ett följt tåg uppdateras ungefär en gång i minuten i bakgrunden medan tåget kör; aviseringar och widgetar uppdateras när iOS tillåter, oftast var 15:e minut eller mer sällan, så de kan släpa efter."
+            "value": "Tågradar berättar om förseningar på fem minuter eller mer, inställda tåg, spårändringar och ankomst för sparade tåg, samt påminner 30 minuter före avgång. Ange dina egna stationer på ett sparat tåg för att bara få veta om ändringar som påverkar dem. När appen är öppen kontrolleras tågen var 30:e sekund. Live Activity för ett följt tåg hålls uppdaterad av Tågradars server, som också skickar tågets aviseringar; övriga aviseringar och widgetar uppdateras när iOS tillåter, oftast var 15:e minut eller mer sällan, så de kan släpa efter."
           }
         }
       }

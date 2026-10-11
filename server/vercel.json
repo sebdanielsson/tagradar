@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["arn1"],
+  "functions": {
+    "api/tick.ts": {
+      "maxDuration": 60
+    }
+  }
+}

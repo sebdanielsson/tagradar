@@ -7,8 +7,8 @@
 # the Tagradar scheme itself, so the whole codebase ends up in the database.
 #
 # Advanced setup replaces default setup: disable "CodeQL analysis" under Settings → Advanced
-# Security (or "Switch to advanced"), otherwise these uploads are rejected. actions and python keep
-# the same buildless analysis default setup gave them.
+# Security (or "Switch to advanced"), otherwise these uploads are rejected. actions, python and
+# javascript-typescript (the push server) use buildless analysis.
 name: CodeQL
 
 on:
@@ -56,6 +56,10 @@ jobs:
             build-mode: none
             runner: ubuntu-26.04-arm
           - language: python
+            build-mode: none
+            runner: ubuntu-26.04-arm
+          # The push server in server/.
+          - language: javascript-typescript
             build-mode: none
             runner: ubuntu-26.04-arm
     steps:

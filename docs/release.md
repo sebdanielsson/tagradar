@@ -6,6 +6,7 @@ How builds get to TestFlight and the App Store, and what a maintainer has to set
 
 ```text
 push / PR ──▶ verify (lint, format, tests, simulator build)
+          └──▶ server (push server typecheck and tests; Vercel deploys server/ itself)
                  │
    push to main ─┴──▶ release-please  keeps a "chore(main): release X.Y.Z" PR up to date
                           │
@@ -36,8 +37,9 @@ Squash-merge pull requests and make the PR title a conventional commit; that tit
 
 ### 1. Apple Developer / App Store Connect
 
-- Paid Apple Developer Program membership. Bundle identifier `se.tagradar.app` (plus `.widgets`) is registered by Xcode's automatic signing on the first archive, together with App Groups (`group.se.tagradar.app`), Keychain Sharing and Background Modes.
-- In App Store Connect, create the app once: name **Tågradar**, bundle ID `se.tagradar.app`, SKU e.g. `tagradar`, primary language English, availability Sweden (and anywhere else). The workflow fills in metadata, screenshots and the What's New text; **age rating** (4+) and the **App Privacy** questionnaire ("no data collected", see `PRIVACY.md`) must be answered by hand in App Store Connect the first time.
+- Paid Apple Developer Program membership. Bundle identifier `se.tagradar.app` (plus `.widgets`) is registered by Xcode's automatic signing on the first archive, together with App Groups (`group.se.tagradar.app`), Keychain Sharing, Background Modes and Push Notifications (Live Activity push updates).
+- An APNs key for the push server, see `docs/live-activity-push.md`.
+- In App Store Connect, create the app once: name **Tågradar**, bundle ID `se.tagradar.app`, SKU e.g. `tagradar`, primary language English, availability Sweden (and anywhere else). The workflow fills in metadata, screenshots and the What's New text; **age rating** (4+) and the **App Privacy** questionnaire (Device ID and Other Usage Data, see `docs/app-store.md` and `PRIVACY.md`) must be answered by hand in App Store Connect the first time.
 - **API key**: App Store Connect → Users and Access → Integrations → App Store Connect API → *Team Keys* → Generate. Role **Admin** (cloud-managed signing needs Admin; App Manager is enough for uploads but not for creating the distribution certificate). Download the `.p8` once; note the Key ID and the Issuer ID.
 - TestFlight: add internal testers under the app's TestFlight tab. Every upload becomes available to them automatically.
 
@@ -56,6 +58,9 @@ Repository → Settings → Secrets and variables → Actions → *Repository se
 | `DISTRIBUTION_CERTIFICATE_PASSWORD` | The export password chosen when creating that `.p12` |
 | `DEVELOPMENT_CERTIFICATE_P12_BASE64` | The pinned Apple Development certificate, base64 encoded — see below |
 | `DEVELOPMENT_CERTIFICATE_PASSWORD` | The export password chosen when creating that `.p12` |
+| `PUSH_SERVER_SECRET` | The push server's `APP_SECRET` (`docs/live-activity-push.md`), built into TestFlight and App Store builds |
+
+And under *Repository variables*: `PUSH_SERVER_HOST`, the push server's host without `https://` (`tagradar-push.vercel.app`). Without the two, builds still work and Live Activities only update while the app runs.
 
 `Scripts/ci/write-asc-key.sh` checks that the decoded key is a PEM file before Xcode uses it. "Authentication failed: Make sure a bearer token was provided" from `xcodebuild` means the key, key ID and issuer ID do not belong together, the key was revoked, or it is an *individual* key instead of a *team* key.
 

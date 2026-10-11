@@ -130,20 +130,28 @@ final class TrainMonitor {
             return
         }
 
-        let alertsOn = settings.alertsEnabled && alerts.isAuthorized
+        // A background launch has not read the notification setting yet.
+        let authorized = await alerts.loadedAuthorization()
+        let alertsOn = settings.alertsEnabled && authorized
         for var snapshot in snapshots {
             guard !Task.isCancelled else { return }
             if let journey = try? await journeys.load(snapshot.key, force: true) {
                 snapshot.apply(journey)
                 byID[snapshot.id]?.update(from: journey)
             }
-            if activities.isFollowing(snapshot.id) {
-                await activities.update(snapshot, names: names)
+            // Asked before the update: an update that ends the activity also ends the server's part.
+            var remote = activities.serverSendsAlerts(for: snapshot.id)
+            if activities.isFollowing(snapshot.id), await activities.update(snapshot, names: names) {
+                // The app ended the activity on arrival or cancellation before the server saw it, and
+                // told the server to stop: this alert is the app's to post.
+                remote = false
+                alerts.takeOver(snapshot.id)
             }
             if byID[snapshot.id] != nil, alertsOn {
                 let ident = snapshot.ident
                 let trains = trains
-                await alerts.process(snapshot, names: names) {
+                // A followed train's alerts ride on its Live Activity push when the server has it.
+                await alerts.process(snapshot, names: names, remote: remote) {
                     guard let position = try? await trains.livePosition(for: ident),
                           let coordinate = position.coordinate else { return nil }
                     return CLLocationCoordinate2D(latitude: coordinate.latitude, longitude: coordinate.longitude)

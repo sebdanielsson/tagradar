@@ -19,7 +19,6 @@ final class AppDependencies {
     let activities = LiveActivityController()
     let alerts = TrainAlerts()
     let monitor: TrainMonitor
-    let activityRefresher: ActivityBackgroundRefresher
     let modelContainer: ModelContainer
     /// A deep link that arrived from a notification tap; `RootView` consumes it.
     var pendingOpenURL: URL?
@@ -51,10 +50,15 @@ final class AppDependencies {
             trains: trains, journeys: journeys, stations: stations, activities: activities, alerts: alerts,
             settings: settings, modelContainer: modelContainer
         )
+        // The push server sends a followed train's alerts only when the app would have: the train is
+        // saved, alerts are on and allowed, and the user has not muted it.
         let container = modelContainer
-        activityRefresher = ActivityBackgroundRefresher(trains: trains, client: client, activities: activities) {
-            let favorites = (try? container.mainContext.fetch(FetchDescriptor<FavoriteTrain>())) ?? []
-            return Dictionary(favorites.map { ($0.id, $0.segment) }, uniquingKeysWith: { a, _ in a })
+        let alertCenter = alerts
+        activities.pushPreferences = { id in
+            let favorite = try? container.mainContext.fetch(FetchDescriptor<FavoriteTrain>(predicate: #Predicate { $0.id == id })).first
+            let authorized = await alertCenter.loadedAuthorization()
+            let alertsOn = favorite != nil && settings.alertsEnabled && authorized && !alertCenter.mutedIDs.contains(id)
+            return LiveActivityController.PushPreferences(segment: favorite?.segment, alerts: alertsOn)
         }
     }
 

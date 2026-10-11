@@ -55,15 +55,21 @@
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
-	<false/>
+	<true/>
 	<key>TRVAPIKey</key>
 	<string>$(TRV_API_KEY)</string>
 	<key>TRVAPIKeyRegistrationURL</key>
 	<string>https://data.trafikverket.se</string>
+	<key>TagradarAPNsEnvironment</key>
+	<string>$(TAGRADAR_APNS_ENVIRONMENT)</string>
 	<key>TagradarAppGroup</key>
 	<string>group.$(TAGRADAR_BUNDLE_ID)</string>
 	<key>TagradarKeychainGroup</key>
 	<string>$(AppIdentifierPrefix)$(TAGRADAR_BUNDLE_ID)</string>
+	<key>TagradarPushServerHost</key>
+	<string>$(PUSH_SERVER_HOST)</string>
+	<key>TagradarPushServerSecret</key>
+	<string>$(PUSH_SERVER_SECRET)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

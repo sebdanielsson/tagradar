@@ -140,9 +140,9 @@ enum StationPins {
             occupied.append(placed)
         }
 
-        /// A target no wider than the gap to the nearest other marker or dot, and never narrower
-        /// than the dot it wraps — a target too small to hit is worse than one that reaches a
-        /// neighbour, and only the ambient dots can be dropped to make room.
+        // A target no wider than the gap to the nearest other marker or dot, and never narrower
+        // than the dot it wraps — a target too small to hit is worse than one that reaches a
+        // neighbour, and only the ambient dots can be dropped to make room.
         func hitSize(at index: Int) -> CGFloat {
             let point = occupied[index].point
             var nearest = Double.infinity

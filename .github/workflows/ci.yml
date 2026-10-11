@@ -77,6 +77,27 @@ jobs:
       - name: TrafikverketKit tests (result)
         wait: [kit-tests]
 
+  # The Live Activity push server (server/). Vercel deploys it from main through its Git integration,
+  # independently of this workflow, so this job gates pull requests only. The Swift side of the
+  # shared contract (TagradarTests/PushContractTests.swift) runs in verify.
+  server:
+    name: Push server
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
   testflight:
     name: TestFlight
     # After release-please, so the release PR already includes this push (see "Resolve version"). Only
@@ -146,9 +167,12 @@ jobs:
         env:
           TRV_API_KEY: ${{ secrets.TRV_API_KEY }}
           DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          PUSH_SERVER_HOST: ${{ vars.PUSH_SERVER_HOST }}
+          PUSH_SERVER_SECRET: ${{ secrets.PUSH_SERVER_SECRET }}
         run: |
           mkdir -p Config
-          printf 'TRV_API_KEY = %s\nDEVELOPMENT_TEAM = %s\n' "$TRV_API_KEY" "$DEVELOPMENT_TEAM" > Config/Secrets.xcconfig
+          printf 'TRV_API_KEY = %s\nDEVELOPMENT_TEAM = %s\nPUSH_SERVER_HOST = %s\nPUSH_SERVER_SECRET = %s\n' \
+            "$TRV_API_KEY" "$DEVELOPMENT_TEAM" "$PUSH_SERVER_HOST" "$PUSH_SERVER_SECRET" > Config/Secrets.xcconfig
           xcodegen generate --quiet
 
       - name: Write App Store Connect API key
@@ -250,9 +274,12 @@ jobs:
         env:
           TRV_API_KEY: ${{ secrets.TRV_API_KEY }}
           DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          PUSH_SERVER_HOST: ${{ vars.PUSH_SERVER_HOST }}
+          PUSH_SERVER_SECRET: ${{ secrets.PUSH_SERVER_SECRET }}
         run: |
           mkdir -p Config
-          printf 'TRV_API_KEY = %s\nDEVELOPMENT_TEAM = %s\n' "$TRV_API_KEY" "$DEVELOPMENT_TEAM" > Config/Secrets.xcconfig
+          printf 'TRV_API_KEY = %s\nDEVELOPMENT_TEAM = %s\nPUSH_SERVER_HOST = %s\nPUSH_SERVER_SECRET = %s\n' \
+            "$TRV_API_KEY" "$DEVELOPMENT_TEAM" "$PUSH_SERVER_HOST" "$PUSH_SERVER_SECRET" > Config/Secrets.xcconfig
           xcodegen generate --quiet
 
       - name: Write App Store Connect API key
