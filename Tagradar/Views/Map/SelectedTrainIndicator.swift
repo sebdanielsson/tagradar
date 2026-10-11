@@ -28,6 +28,8 @@ final class SelectedTrainTracker {
         let insets: EdgeInsets?
         let mapSize: CGSize
         let severity: DelayIndex.Severity?
+        /// Bumped once a hold-back has passed.
+        let holdBackEnded: Int
     }
 
     /// `nil` while the selected train is in view, or there is none.
@@ -39,7 +41,9 @@ final class SelectedTrainTracker {
     /// newly selected train is usually off-screen only while the camera flies to it, and showing
     /// the pill for the length of that flight would just flash it.
     @ObservationIgnored private var trainID: String?
-    @ObservationIgnored private var hiddenUntil: Date?
+    /// Observed, unlike the rest: `TrainMapView` waits on it to place the indicator once it passes.
+    /// Only ever written when it changes, so the map re-renders once per selection, not per frame.
+    private(set) var hiddenUntil: Date?
 
     /// How long a newly selected train goes without an indicator, unless the camera settles first.
     static let holdBack: TimeInterval = 1.5
@@ -47,13 +51,15 @@ final class SelectedTrainTracker {
     /// Hides the indicator and forgets the train, so selecting it again waits out the flight anew.
     func clear() {
         trainID = nil
-        hiddenUntil = nil
+        cameraSettled()
         update(to: nil)
     }
 
     /// The camera came to rest, so whatever it was flying to has arrived (or the user took over).
     func cameraSettled() {
-        hiddenUntil = nil
+        if hiddenUntil != nil {
+            hiddenUntil = nil
+        }
     }
 
     func update(to placement: Placement?) {

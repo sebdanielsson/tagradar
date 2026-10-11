@@ -55,6 +55,7 @@ struct TrainMapView: View {
     @State private var indicator = SelectedTrainTracker()
     /// Bumped to replay the selected marker's pulse when the indicator brings it back into view.
     @State private var pulseCount = 0
+    @State private var holdBackEnded = 0
 
     private static let mapSpace = "TrainMapView.map"
     private static let logger = Logger(subsystem: "se.tagradar.app", category: "TrainMapView")
@@ -62,8 +63,7 @@ struct TrainMapView: View {
     var body: some View {
         MapReader { proxy in
             map
-                // Both: `.continuous` follows a pan frame by frame, and `.onEnd` makes sure the
-                // final frame of a programmatic move lands.
+                // `.onEnd` too, so the final frame of a programmatic move always lands.
                 .onMapCameraChange(frequency: .continuous) { context in
                     indicator.camera = context.camera
                     updateIndicator(proxy)
@@ -76,12 +76,13 @@ struct TrainMapView: View {
                 .onChange(of: indicatorInputs, initial: true) { _, _ in
                     updateIndicator(proxy)
                 }
-                // Once a new selection's hold-back runs out, in case neither the camera nor the
-                // trains move again to place the indicator.
-                .task(id: selectedTrainID) {
-                    try? await Task.sleep(for: .seconds(SelectedTrainTracker.holdBack + 0.1))
+                // Places the indicator when a hold-back runs out, should nothing else move by then.
+                // Via `indicatorInputs`: this closure would still see this render's insets.
+                .task(id: indicator.hiddenUntil) {
+                    guard let until = indicator.hiddenUntil else { return }
+                    try? await Task.sleep(for: .seconds(max(0, until.timeIntervalSinceNow) + 0.05))
                     guard !Task.isCancelled else { return }
-                    updateIndicator(proxy)
+                    holdBackEnded += 1
                 }
                 .coordinateSpace(.named(Self.mapSpace))
                 .overlay {
@@ -534,8 +535,7 @@ struct TrainMapView: View {
     }
 }
 
-// MARK: Selection
-
+/// The selected train, saved trains and the off-screen indicator.
 extension TrainMapView {
     /// Whether every train but the selected one is drawn as a dot: zoomed out, or while one is
     /// selected.
@@ -565,7 +565,8 @@ extension TrainMapView {
             selectedTrainID: selectedTrainID,
             insets: indicatorInsets,
             mapSize: mapSize,
-            severity: selectedTrain.map(severity(of:))
+            severity: selectedTrain.map(severity(of:)),
+            holdBackEnded: holdBackEnded
         )
     }
 
