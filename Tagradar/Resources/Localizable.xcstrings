@@ -1320,6 +1320,16 @@
         }
       }
     },
+    "Saved train %@": {
+      "localizations": {
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sparat tåg %@"
+          }
+        }
+      }
+    },
     "Saved trains": {
       "localizations": {
         "sv": {
@@ -1436,6 +1446,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Visa stationer"
+          }
+        }
+      }
+    },
+    "Show train %@": {
+      "localizations": {
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visa tåg %@"
           }
         }
       }
