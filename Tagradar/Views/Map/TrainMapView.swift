@@ -76,6 +76,13 @@ struct TrainMapView: View {
                 .onChange(of: indicatorInputs, initial: true) { _, _ in
                     updateIndicator(proxy)
                 }
+                // Once a new selection's hold-back runs out, in case neither the camera nor the
+                // trains move again to place the indicator.
+                .task(id: selectedTrainID) {
+                    try? await Task.sleep(for: .seconds(SelectedTrainTracker.holdBack + 0.1))
+                    guard !Task.isCancelled else { return }
+                    updateIndicator(proxy)
+                }
                 .coordinateSpace(.named(Self.mapSpace))
                 .overlay {
                     SelectedTrainIndicator(tracker: indicator) {
@@ -572,8 +579,13 @@ extension TrainMapView {
     }
 
     private func updateIndicator(_ proxy: MapProxy) {
-        guard let insets = indicatorInsets, let train = selectedTrain else {
+        guard let train = selectedTrain else {
             indicator.clear()
+            return
+        }
+        // Only hidden, not cleared: the card covering the map isn't a new selection to wait for.
+        guard let insets = indicatorInsets else {
+            indicator.update(to: nil)
             return
         }
         indicator.update(

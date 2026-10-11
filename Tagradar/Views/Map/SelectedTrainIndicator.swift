@@ -41,6 +41,9 @@ final class SelectedTrainTracker {
     @ObservationIgnored private var trainID: String?
     @ObservationIgnored private var hiddenUntil: Date?
 
+    /// How long a newly selected train goes without an indicator, unless the camera settles first.
+    static let holdBack: TimeInterval = 1.5
+
     /// Hides the indicator and forgets the train, so selecting it again waits out the flight anew.
     func clear() {
         trainID = nil
@@ -83,7 +86,7 @@ final class SelectedTrainTracker {
     func update(train: LiveTrain, color: Color, proxy: MapProxy, space: NamedCoordinateSpace, bounds: CGRect) {
         if train.id != trainID {
             trainID = train.id
-            hiddenUntil = .now + 1.5
+            hiddenUntil = .now + Self.holdBack
         }
         if let hiddenUntil, Date.now < hiddenUntil {
             update(to: nil)
