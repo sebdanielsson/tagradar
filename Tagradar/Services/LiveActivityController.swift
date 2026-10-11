@@ -89,7 +89,7 @@ final class LiveActivityController {
         let content = Self.content(for: snapshot, names: names)
         switch content.state.status {
         case .arrived, .canceled:
-            let endedHere = await Self.end(id: snapshot.id, content: content, dismissal: .after(.now.addingTimeInterval(15 * 60)))
+            let endedHere = await Self.end(id: snapshot.id, content: content, dismissal: .after(Self.dismissal(for: content.state)))
             await stopped(snapshot.id)
             return endedHere
         case .scheduled, .enRoute:
@@ -184,6 +184,18 @@ final class LiveActivityController {
                 return 3 * 60
             }
             return min(max(untilDeparture / 4, 10 * 60), 60 * 60)
+        }
+    }
+
+    /// When a finished activity leaves the Lock Screen: five minutes after the trip's arrival, or at
+    /// once when that has passed already; a cancellation stays a while so it is seen. The push
+    /// server ends activities the same way (server/src/tick.ts).
+    nonisolated static func dismissal(for state: TrainActivityAttributes.ContentState, now: Date = .now) -> Date {
+        switch state.status {
+        case .arrived:
+            max(now, (state.expectedArrival ?? now).addingTimeInterval(5 * 60))
+        case .canceled, .scheduled, .enRoute:
+            now.addingTimeInterval(15 * 60)
         }
     }
 

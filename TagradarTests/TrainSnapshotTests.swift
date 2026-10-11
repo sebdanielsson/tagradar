@@ -227,6 +227,16 @@ struct ActivityRefreshIntervalTests {
         LiveActivityController.refreshInterval(for: state(status: status, departureIn: departureIn), now: now)
     }
 
+    @Test("A finished trip leaves the Lock Screen five minutes after arriving, a cancellation later")
+    func dismissal() {
+        var arrived = state(status: .arrived)
+        arrived.expectedArrival = now.addingTimeInterval(-60)
+        #expect(LiveActivityController.dismissal(for: arrived, now: now) == now.addingTimeInterval(4 * 60))
+        arrived.expectedArrival = now.addingTimeInterval(-20 * 60)
+        #expect(LiveActivityController.dismissal(for: arrived, now: now) == now)
+        #expect(LiveActivityController.dismissal(for: state(status: .canceled), now: now) == now.addingTimeInterval(15 * 60))
+    }
+
     @Test("Once a minute while running, slower while waiting, off when done")
     func intervals() {
         #expect(interval(.enRoute) == 60)

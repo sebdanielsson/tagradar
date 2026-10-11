@@ -5,7 +5,7 @@ import type { LiveActivityPush, PushResult, PushSender } from "../src/apns.js";
 import { StationNames } from "../src/contentState.js";
 import { register, validate } from "../src/registration.js";
 import { MemoryStore } from "../src/store.js";
-import { tick } from "../src/tick.js";
+import { dismissal, tick } from "../src/tick.js";
 import { clientAddress } from "../src/config.js";
 import { parseAnnouncements, type Announcement } from "../src/trafikverket.js";
 
@@ -106,7 +106,8 @@ describe("tick", () => {
     expect(stats).toMatchObject({ ended: 1, removed: 1 });
     const aps = (push.sent[0]!.payload as { aps: Record<string, unknown> }).aps;
     expect(aps.event).toBe("end");
-    expect(aps["dismissal-date"]).toBe(now / 1000 + 15 * 60);
+    // Five minutes after the arrival at 13:03 (#57).
+    expect(aps["dismissal-date"]).toBe(Date.parse("2026-09-05T11:08:00Z") / 1000);
     expect(store.registrations.size).toBe(0);
     expect(store.nextPoll.size).toBe(0);
   });
@@ -398,5 +399,16 @@ describe("back-off with company", () => {
     }
     // Ticks at 0, 1, 2 and 3 minutes: the failing one is tried at 0, then after 1 and 2 more minutes.
     expect(sent.filter((t) => t === token)).toHaveLength(3);
+  });
+});
+
+describe("dismissal", () => {
+  const at = Date.parse("2026-09-05T11:00:00Z");
+
+  it("clears a finished trip five minutes after it arrived, a cancellation after a quarter of an hour", () => {
+    expect(dismissal("arrived", at - 60_000, at)).toBe(at + 4 * 60_000);
+    expect(dismissal("arrived", at - 20 * 60_000, at)).toBe(at);
+    expect(dismissal("enRoute", undefined, at)).toBe(at + 5 * 60_000);
+    expect(dismissal("canceled", at, at)).toBe(at + 15 * 60_000);
   });
 });

@@ -17,8 +17,10 @@ const minute = 60_000;
 const maxTrainsPerTick = 40;
 /** Claimed runs are skipped by overlapping ticks for this long. */
 const lease = 3 * minute;
-/** How long a finished activity stays on the Lock Screen, like `LiveActivityController.update`. */
-const dismissAfter = 15 * minute;
+/** A finished trip leaves the Lock Screen this long after its arrival, like `LiveActivityController.dismissal`. */
+const dismissAfterArrival = 5 * minute;
+/** A cancellation stays longer, so it is seen. */
+const dismissAfterCancellation = 15 * minute;
 /** A run that should have arrived this long ago is ended even if its arrival was never reported. */
 const overdueAfter = 60 * minute;
 const retryAfterError = 2 * minute;
@@ -193,7 +195,7 @@ async function follow(
       event: finished && i === all.length - 1 ? "end" : "update",
       "content-state": encoded,
       "stale-date": seconds(stale),
-      ...(finished ? { "dismissal-date": seconds(now + dismissAfter) } : {}),
+      ...(finished ? { "dismissal-date": seconds(dismissal(content.status, content.expectedArrival, now)) } : {}),
       ...(alert ? { alert: { title: alertTitle(snap), body: alertBody(alert, snap, names), sound: "default" } } : {}),
     },
   }));
@@ -261,4 +263,15 @@ async function follow(
       ? { ...state, pendingAlerts: alerts.slice(delivered), failures, retryAt: now + wait }
       : { ...previous, failures, retryAt: now + wait };
   return { kind: "keep", state: retryState, interval: wait };
+}
+
+/** When an ended activity is dismissed: five minutes after the trip's arrival (at once if that has
+ * passed), or a quarter of an hour after a cancellation. A run ended because it is overdue counts as
+ * arrived now. */
+export function dismissal(status: string, expectedArrival: number | undefined, now: number): number {
+  if (status === "canceled") {
+    return now + dismissAfterCancellation;
+  }
+  const arrival = status === "arrived" && expectedArrival !== undefined ? expectedArrival : now;
+  return Math.max(now, arrival + dismissAfterArrival);
 }
