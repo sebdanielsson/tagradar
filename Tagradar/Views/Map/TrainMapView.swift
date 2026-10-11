@@ -70,6 +70,7 @@ struct TrainMapView: View {
                 }
                 .onMapCameraChange(frequency: .onEnd) { context in
                     indicator.camera = context.camera
+                    indicator.cameraSettled()
                     updateIndicator(proxy)
                 }
                 .onChange(of: indicatorInputs, initial: true) { _, _ in
@@ -87,7 +88,7 @@ struct TrainMapView: View {
     private var map: some View {
         // Resolved once per render rather than per annotation.
         let selected = selectedTrain
-        let saved = savedTrainIDs
+        let saved = savedTrainKeys
         return Map(position: $camera, interactionModes: .all, selection: $selectedTrainID, scope: scope) {
             UserAnnotation()
             if let journey = journeys.cached(selectedKey) {
@@ -123,7 +124,8 @@ struct TrainMapView: View {
                 }
                 .annotationTitles(.visible)
             }
-            ForEach(ambientTrains(saved: saved)) { train in
+            ForEach(AmbientTrain.layers(of: displayedTrains, excluding: selectedTrainID, saved: saved)) { ambient in
+                let train = ambient.train
                 Annotation(coordinate: train.clCoordinate, anchor: .center) {
                     TrainMarker(
                         train: train,
@@ -134,7 +136,7 @@ struct TrainMapView: View {
                         // Every other train shrinks to a dot while one is selected, so the
                         // selected one stands out from the crowd around it.
                         compact: compactMarkers || selected != nil,
-                        isSaved: isSaved(train, in: saved)
+                        isSaved: ambient.isSaved
                     )
                 } label: {
                     Text(train.displayNumber)
@@ -152,7 +154,7 @@ struct TrainMapView: View {
                         isSelected: true,
                         showLabel: true,
                         isStale: selected.isStale(at: displayedAt),
-                        isSaved: isSaved(selected, in: saved),
+                        isSaved: selected.isSaved(in: saved),
                         pulseTrigger: "\(selected.id)#\(pulseCount)"
                     )
                 } label: {
@@ -531,7 +533,7 @@ extension TrainMapView {
     /// Whether every train but the selected one is drawn as a dot: zoomed out, or while one is
     /// selected.
     private var othersCompact: Bool {
-        compactMarkers || selectedTrainID != nil
+        compactMarkers || selectedTrain != nil
     }
 
     /// The selected train as currently drawn, if it's on the map at all.
@@ -540,20 +542,10 @@ extension TrainMapView {
         return displayedTrains.first { $0.id == selectedTrainID }
     }
 
-    /// Every displayed train except the selected one, saved trains last so they're drawn over the
-    /// unsaved ones around them.
-    private func ambientTrains(saved: Set<String>) -> [LiveTrain] {
-        let others = displayedTrains.filter { $0.id != selectedTrainID }
-        guard !saved.isEmpty else { return others }
-        return others.filter { !isSaved($0, in: saved) } + others.filter { isSaved($0, in: saved) }
-    }
-
-    private var savedTrainIDs: Set<String> {
-        Set(favorites.map(\.id))
-    }
-
-    private func isSaved(_ train: LiveTrain, in saved: Set<String>) -> Bool {
-        train.key.map { saved.contains($0.id) } ?? false
+    /// Keys rather than `FavoriteTrain.id` strings: building a key's id formats its date, which is
+    /// too slow to do for every train on every render.
+    private var savedTrainKeys: Set<TrainKey> {
+        Set(favorites.map(\.key))
     }
 
     private func severity(of train: LiveTrain) -> DelayIndex.Severity {
@@ -581,7 +573,7 @@ extension TrainMapView {
 
     private func updateIndicator(_ proxy: MapProxy) {
         guard let insets = indicatorInsets, let train = selectedTrain else {
-            indicator.update(to: nil)
+            indicator.clear()
             return
         }
         indicator.update(

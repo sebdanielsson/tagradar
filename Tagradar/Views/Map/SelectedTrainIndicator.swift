@@ -35,6 +35,23 @@ final class SelectedTrainTracker {
     /// The map's camera as of the last frame, for panning back with the zoom, heading and pitch
     /// kept. Not observed: nothing on screen depends on it.
     @ObservationIgnored var camera: MapCamera?
+    /// The train the indicator was last placed for, and until when it stays hidden for it: a
+    /// newly selected train is usually off-screen only while the camera flies to it, and showing
+    /// the pill for the length of that flight would just flash it.
+    @ObservationIgnored private var trainID: String?
+    @ObservationIgnored private var hiddenUntil: Date?
+
+    /// Hides the indicator and forgets the train, so selecting it again waits out the flight anew.
+    func clear() {
+        trainID = nil
+        hiddenUntil = nil
+        update(to: nil)
+    }
+
+    /// The camera came to rest, so whatever it was flying to has arrived (or the user took over).
+    func cameraSettled() {
+        hiddenUntil = nil
+    }
 
     func update(to placement: Placement?) {
         // Assigning an equal value still notifies observers.
@@ -64,6 +81,14 @@ final class SelectedTrainTracker {
     /// inside `bounds`, the unobscured part of the map: a train under the card is as hard to find
     /// as one off the edge.
     func update(train: LiveTrain, color: Color, proxy: MapProxy, space: NamedCoordinateSpace, bounds: CGRect) {
+        if train.id != trainID {
+            trainID = train.id
+            hiddenUntil = .now + 1.5
+        }
+        if let hiddenUntil, Date.now < hiddenUntil {
+            update(to: nil)
+            return
+        }
         // Shrunk by half the selected marker, so a train right at the edge still counts as visible.
         guard bounds.width > 0, bounds.height > 0,
               let target = proxy.convert(train.clCoordinate, to: space),

@@ -66,3 +66,37 @@ extension CGRect {
         )
     }
 }
+
+/// A displayed train other than the selected one, with whether it's saved worked out once.
+struct AmbientTrain: Identifiable {
+    let train: LiveTrain
+    let isSaved: Bool
+
+    var id: String {
+        train.id
+    }
+
+    /// Every train in `trains` except the selected one, saved trains last so they're drawn over
+    /// the unsaved ones around them. One pass, and no key at all without saved trains: this runs
+    /// on every render of the map, for hundreds of trains.
+    static func layers(of trains: [LiveTrain], excluding selectedID: String?, saved: Set<TrainKey>) -> [AmbientTrain] {
+        var unsaved: [AmbientTrain] = []
+        var savedTrains: [AmbientTrain] = []
+        unsaved.reserveCapacity(trains.count)
+        for train in trains where train.id != selectedID {
+            if train.isSaved(in: saved) {
+                savedTrains.append(AmbientTrain(train: train, isSaved: true))
+            } else {
+                unsaved.append(AmbientTrain(train: train, isSaved: false))
+            }
+        }
+        return unsaved + savedTrains
+    }
+}
+
+extension LiveTrain {
+    func isSaved(in saved: Set<TrainKey>) -> Bool {
+        guard !saved.isEmpty, let key else { return false }
+        return saved.contains(key)
+    }
+}
