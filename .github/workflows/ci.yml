@@ -365,4 +365,4 @@ jobs:
         env:
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
-          echo "Tågradar $VERSION (build ${{ github.run_number }}.${{ github.run_attempt }}) uploaded and submitted for review. Release it in App Store Connect once approved." >> "$GITHUB_STEP_SUMMARY"
+          echo "Tågradar $VERSION (build ${{ github.run_number }}.${{ github.run_attempt }}) uploaded and submitted for review. It is released automatically once approved." >> "$GITHUB_STEP_SUMMARY"

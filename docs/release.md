@@ -18,7 +18,7 @@ push / PR ──▶ verify (lint, format, tests, simulator build)
 
 - **Every push to `main`** produces a TestFlight build. Internal testers see it after Apple's processing; the build number is the workflow run number. App Store Connect closes a version to new builds once it has been approved, while `main` keeps the released version until the next release PR is merged, so the job (which runs after release-please) picks the version like this: in the run that creates a release, `version.txt` (the version just released); otherwise the open release PR's `version.txt`; otherwise, if `main`'s `version.txt` is already tagged (only commits in hidden changelog sections, such as `chore:`, `ci:` or `docs:`, since the release, so no release PR), that version plus one patch; otherwise `version.txt` (before the first release). The App Store build from a release run gets `<run number>.<run attempt>` (for example `202.1`), because the TestFlight job of that same run, which runs in parallel, also uploads the release version, as build `<run number>`; the suffix keeps the two uploads from colliding whichever finishes first.
 - **Releases** are driven by [release-please](https://github.com/googleapis/release-please). It reads the commit messages on `main` and maintains a release pull request that bumps `version.txt`, `project.yml` (`MARKETING_VERSION`) and `CHANGELOG.md`. Merging that PR creates the tag and the GitHub release, and the same workflow run then submits the tagged build to App Store Review.
-- After Apple approves, **release it manually** in App Store Connect (the workflow sets `automatic_release: false`), so the store listing and the GitHub release can go out together.
+- Once Apple approves, the version **goes live automatically** (the Fastfile sets `automatic_release: true`). App Store Connect allows only one version in flight, so a version left in *Pending Developer Release* or *In Review* makes the next release run fail with "You cannot create a new version of the App in the current state"; release or reject that version, then re-run the failed *App Store* job.
 
 ### Commit messages decide the version
 
@@ -89,7 +89,7 @@ Each certificate is valid for a year; when one expires, repeat steps 2–4 for t
 ## Day to day
 
 - Merge work into `main` with conventional commit messages → TestFlight build appears, release PR is updated.
-- When ready to ship: merge the release PR → wait for the *App Store* job → approve/release in App Store Connect.
+- When ready to ship: merge the release PR → the *App Store* job submits it for review → it goes live once Apple approves.
 - On-demand TestFlight from any branch: Actions → CI/CD → *Run workflow*.
 - Store text lives in `fastlane/metadata/<locale>/*.txt` (English `en-US`, Swedish `sv`); screenshots in `fastlane/screenshots/<locale>/` (`Scripts/screenshots.sh` regenerates them at the sizes App Store Connect requires; `LOCALES=sv` for Swedish only). Both are uploaded with every release and overwrite what is in App Store Connect.
 - App Privacy details cannot be updated through the API key; change them in App Store Connect if the app ever starts collecting data.

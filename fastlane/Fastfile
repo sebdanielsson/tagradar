@@ -29,9 +29,9 @@ platform :ios do
       run_precheck_before_submit: false,
       precheck_include_in_app_purchases: false,
       submit_for_review: true,
-      # Release manually in App Store Connect after approval, so the store listing and the
-      # GitHub release can go out together.
-      automatic_release: false,
+      # Go live as soon as Apple approves. A version left in "Pending Developer Release" blocks
+      # App Store Connect from creating the next one, which fails the following release run.
+      automatic_release: true,
       phased_release: false,
       reject_if_possible: true,
       submission_information: {

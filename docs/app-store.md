@@ -126,7 +126,7 @@ Almost all of this is uploaded, but the fields are listed so you can check them 
 
 - [ ] **App Review Information → contact details.** First name, last name, phone number and email address. Entered by hand once; App Store Connect keeps them for later versions. Leave "Sign-in required" **off** — the app has no account.
 - [ ] **App Review Information → notes.** Uploaded from `fastlane/metadata/review_information/notes.txt`. Check it reads sensibly after the first upload.
-- [ ] **Version Release:** "Manually release this version". The Fastfile sets this (`automatic_release: false`) so the store listing and the GitHub release can go out together.
+- [ ] **Version Release:** "Automatically release this version". The Fastfile sets this (`automatic_release: true`), so an approved version never sits in Pending Developer Release and blocks the next one.
 - [ ] **Export compliance:** no question is asked. `ITSAppUsesNonExemptEncryption` is already `false` in `project.yml`, and the Fastfile repeats `export_compliance_uses_encryption: false` with the submission.
 - [ ] **Advertising identifier:** No. The app contains no IDFA; the Fastfile sends `add_id_info_uses_idfa: false`.
 
