@@ -27,7 +27,7 @@ Permission alerts are localized too: the English source strings are the `NS*Usag
 
 ## 1. Account, once per developer account
 
-- [ ] **Paid Apple Developer Program membership.** The free Personal Team can build to your own devices but cannot upload to App Store Connect. Everything the app does (App Groups, Live Activities, local notifications, background refresh) works on both.
+- [ ] **Paid Apple Developer Program membership.** The free Personal Team can build to your own devices but cannot upload to App Store Connect. Everything the app does (App Groups, Live Activities, local notifications, background refresh) works on both, except push updates for Live Activities: a Personal Team cannot have the Push Notifications capability, so set `PERSONAL_TEAM=YES` in `.env.local` and activities only update while the app runs.
 - [ ] **Agreements.** App Store Connect → Business → Agreements. The Free Apps agreement must be active; the app is free, so no banking or tax details are needed.
 - [ ] **EU trader status (Digital Services Act).** App Store Connect → Business → Agreements tab → Compliance section → Digital Services Act → *Complete Compliance Requirements*. Required whether or not you distribute in the EU; apps without a verified status are removed from the EU App Store. Sweden is in the EU, so this is a hard blocker, and Apple's verification takes days — do it first.
 
@@ -38,7 +38,7 @@ Permission alerts are localized too: the English source strings are the `NS*Usag
 
 ## 2. Register the app
 
-- [ ] **Bundle ID** `se.tagradar.app` with App Groups (`group.se.tagradar.app`), Keychain Sharing and Background Modes. Xcode's automatic signing registers it on the first archive, and the widget extension's `se.tagradar.app.widgets` with it.
+- [ ] **Bundle ID** `se.tagradar.app` with App Groups (`group.se.tagradar.app`), Keychain Sharing, Background Modes and Push Notifications (for Live Activity push updates; also create the APNs key in `docs/live-activity-push.md`). Xcode's automatic signing registers it on the first archive, and the widget extension's `se.tagradar.app.widgets` with it.
 - [ ] **Create the app record.** App Store Connect → Apps → **+** → New App. It must exist before the App Store job runs, or `fastlane release` has nothing to upload to.
 
   | Field | Value |
@@ -75,7 +75,7 @@ App Information → Age Rating → Edit. The questionnaire was expanded in 2025 
 - No cartoon, fantasy or realistic violence; no profanity, crude humour, sexual content, nudity, horror or gambling themes.
 - No alcohol, tobacco or drug references, no medical or wellness content, no violent themes.
 - **Unrestricted web access:** No. There is no in-app browser and no address bar, so nothing a user types can navigate anywhere. The few links the app does show — Trafikverket's key registration page, the GitHub source and issue tracker, and an operator's own site from a journey's facts — hand a fixed URL to Safari.
-- **User-generated content / social features / messaging:** No. There is no account, no server and nothing any user can publish.
+- **User-generated content / social features / messaging:** No. There is no account and nothing any user can publish.
 - **In-app controls (parental controls, purchases, advertising):** None.
 - [ ] Answered, showing 4+.
 
@@ -91,16 +91,21 @@ App Information → Age Rating → Edit. The questionnaire was expanded in 2025 
 Left sidebar → App Privacy. This one genuinely cannot be automated, and a missing answer blocks the submission.
 
 - [ ] **Privacy Policy URL:** `https://github.com/sebdanielsson/tagradar/blob/main/PRIVACY.md`
-- [ ] **Data collection:** choose **"No, we do not collect data from this app."**
+- [ ] **Data collection:** choose **"Yes, we collect data from this app"** and declare exactly two types:
+  - **Identifiers → Device ID**: the Live Activity's push token.
+  - **Usage Data → Other Usage Data**: the followed train, the picked stops and the alert choice.
 
-That answer is accurate and worth being able to defend, because the app does touch location, microphone and speech:
+  For both: purpose **App Functionality** only, **not linked** to the user's identity, **not used for tracking**.
 
-- There is no backend and no analytics, so no data reaches the developer by any path.
+Why, and why nothing else:
+
+- The Live Activity push server (docs/live-activity-push.md) keeps those values for as long as the activity runs, which is longer than it takes to answer the request, so Apple counts them as collected. They are deleted when the activity ends, three days after the trip at the latest. The push token is issued for one Live Activity and changes with every train followed, and nothing ties it to an account, a name or a stable device identifier, hence not linked.
+- There are no analytics, and no other data reaches the developer.
 - Location is used on the device to centre the map and to find the nearest station for "Near you"; the position never leaves the device. Only that station's signature goes to Trafikverket, in the same departure-board request as for any station the user opens.
 - Microphone audio and speech recognition are handled by Apple's own services under Apple's privacy terms; the app stores no recordings. Apple's questionnaire asks what *you* collect, not what the system does on the user's behalf.
 - Trafikverket receives anonymous API requests carrying train numbers, station signatures and an API key — nothing that identifies the user.
 
-This matches `PRIVACY.md` and `Tagradar/Resources/PrivacyInfo.xcprivacy`, which declares no collected data types, no tracking, and the one required-reason API the app uses (`UserDefaults`, reason `CA92.1` — shared with the widget through the App Group). The widget extension is a separate binary and reaches the same App Group, so `project.yml` builds that manifest into it as well; keep both in step, and update it if a new required-reason API is ever added.
+This matches `PRIVACY.md` and `Tagradar/Resources/PrivacyInfo.xcprivacy`, which declares the same two collected data types, no tracking, and the one required-reason API the app uses (`UserDefaults`, reason `CA92.1` — shared with the widget through the App Group). The widget extension is a separate binary and reaches the same App Group, so `project.yml` builds that manifest into it as well; keep both in step, and update it if a new required-reason API is ever added.
 
 ## 6. The version page (1.0.0)
 

@@ -53,11 +53,11 @@ targets:
     dependencies:
       - package: TrafikverketKit
       - target: TagradarWidgets
-    entitlements:
-      path: Tagradar/Tagradar.entitlements
-      properties:
-        com.apple.security.application-groups: ["group.$(TAGRADAR_BUNDLE_ID)"]
-        keychain-access-groups: ["$(AppIdentifierPrefix)$(TAGRADAR_BUNDLE_ID)"]
+    # The app's entitlements are kept by hand rather than generated, because there are two:
+    # Tagradar.entitlements (App Group, Keychain group, aps-environment for Live Activity pushes;
+    # exporting for the App Store switches aps-environment to production) and
+    # TagradarPersonalTeam.entitlements, the same without aps-environment, for a free Personal Team,
+    # which cannot sign it (PERSONAL_TEAM=YES in .env.local). Keep the two in step.
     info:
       path: Tagradar/Info.plist
       properties:
@@ -92,7 +92,13 @@ targets:
         TagradarAppGroup: "group.$(TAGRADAR_BUNDLE_ID)"
         TagradarKeychainGroup: "$(AppIdentifierPrefix)$(TAGRADAR_BUNDLE_ID)"
         NSSupportsLiveActivities: true
-        NSSupportsLiveActivitiesFrequentUpdates: false
+        # The push server updates a running train about once a minute.
+        NSSupportsLiveActivitiesFrequentUpdates: true
+        # Push server for Live Activities; both empty means activities only update while the app runs.
+        # A host, not a URL: xcconfig files treat "//" as the start of a comment.
+        TagradarPushServerHost: "$(PUSH_SERVER_HOST)"
+        TagradarPushServerSecret: "$(PUSH_SERVER_SECRET)"
+        TagradarAPNsEnvironment: "$(TAGRADAR_APNS_ENVIRONMENT)"
         AppIdentifierPrefix: "$(AppIdentifierPrefix)"
         CFBundleURLTypes:
           - CFBundleURLName: "$(TAGRADAR_BUNDLE_ID)"
@@ -102,12 +108,20 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: "$(TAGRADAR_BUNDLE_ID)"
+        CODE_SIGN_ENTITLEMENTS: "$(TAGRADAR_APP_ENTITLEMENTS:default=Tagradar/Tagradar.entitlements)"
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_UISupportsDocumentBrowser: NO
         SWIFT_OBJC_BRIDGING_HEADER: ""
         ENABLE_PREVIEWS: YES
         DEVELOPMENT_ASSET_PATHS: "Tagradar/Preview\\ Content"
+      # Which APNs gateway the app's push tokens belong to, sent along with them. A Release build run
+      # from Xcode still gets sandbox tokens; the server retries the other gateway when that happens.
+      configs:
+        Debug:
+          TAGRADAR_APNS_ENVIRONMENT: development
+        Release:
+          TAGRADAR_APNS_ENVIRONMENT: production
   TagradarWidgets:
     type: app-extension
     platform: iOS

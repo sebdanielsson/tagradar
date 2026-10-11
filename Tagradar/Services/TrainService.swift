@@ -30,19 +30,6 @@ struct TrainService: Sendable {
             .sorted { ($0.scheduledDeparture ?? .distantFuture) < ($1.scheduledDeparture ?? .distantFuture) }
     }
 
-    /// The query behind `journey(for:)`, exposed so a background `URLSession` can run it.
-    func journeyQuery(for key: TrainKey) -> Query<TrainAnnouncement> {
-        Self.announcementsQuery(ident: key.ident, day: key.dateString)
-    }
-
-    /// Assembles a journey from a raw response to `journeyQuery(for:)`.
-    static func journey(for key: TrainKey, responseData: Data) throws -> TrainJourney? {
-        let result = try TrafikverketClient.decode(responseData, as: TrainAnnouncement.self)
-        let rows = result.objects.filter { !($0.deleted ?? false) }
-        guard !rows.isEmpty else { return nil }
-        return TrainJourney(key: key, announcements: rows)
-    }
-
     private static func announcementsQuery(ident: String, day: String) -> Query<TrainAnnouncement> {
         Query<TrainAnnouncement>()
             .filter(

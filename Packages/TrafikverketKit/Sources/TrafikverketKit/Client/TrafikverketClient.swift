@@ -49,15 +49,7 @@ public final class TrafikverketClient: Sendable {
         return try ResponseEnvelope.decode(data, as: Object.self)
     }
 
-    /// The HTTP request for a query, for callers that run it through their own `URLSession`
-    /// (for example a background session that wakes the app when the response arrives).
-    /// The body is the rendered request document; `TrafikverketClient.decode` parses the response.
-    public func request(for query: Query<some TRVObject>) async throws -> URLRequest {
-        guard let key = await keyProvider.apiKey(), !key.isEmpty else { throw TrafikverketError.missingAPIKey }
-        return makeRequest(body: RequestDocument.render(apiKey: key, queries: [query.renderXML()]))
-    }
-
-    /// Decodes a response body produced by a request from `request(for:)`.
+    /// Decodes a response body fetched some other way, such as a recorded fixture.
     public static func decode<Object: TRVObject>(_ data: Data, as type: Object.Type) throws -> QueryResult<Object> {
         try ResponseEnvelope.decode(data, as: type)
     }

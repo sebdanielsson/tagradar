@@ -1,0 +1,146 @@
+{
+  "description": "Every stop cancelled before departure.",
+  "trainId": "837@2026-09-05",
+  "segment": null,
+  "now": "2026-09-05T07:30:00Z",
+  "stations": [
+    {
+      "LocationSignature": "Cst",
+      "AdvertisedLocationName": "Stockholm C",
+      "AdvertisedShortLocationName": "Stockholm",
+      "Advertised": true
+    },
+    {
+      "LocationSignature": "U",
+      "AdvertisedLocationName": "Uppsala C",
+      "AdvertisedShortLocationName": "Uppsala",
+      "Advertised": true
+    },
+    {
+      "LocationSignature": "Gä",
+      "AdvertisedLocationName": "Gävle C",
+      "AdvertisedShortLocationName": "Gävle",
+      "Advertised": true
+    },
+    {
+      "LocationSignature": "Söc",
+      "AdvertisedLocationName": "Söderhamn",
+      "Advertised": true
+    },
+    {
+      "LocationSignature": "Hdm",
+      "AdvertisedLocationName": "Hudiksvall",
+      "Advertised": true
+    },
+    {
+      "LocationSignature": "Suc",
+      "AdvertisedLocationName": "Sundsvall C",
+      "AdvertisedShortLocationName": "Sundsvall",
+      "Advertised": true
+    },
+    {
+      "LocationSignature": "Arnc",
+      "AdvertisedLocationName": "Arlanda C",
+      "Advertised": true
+    }
+  ],
+  "response": {
+    "RESPONSE": {
+      "RESULT": [
+        {
+          "TrainAnnouncement": [
+            {
+              "ActivityId": "a035",
+              "ActivityType": "Avgang",
+              "Advertised": true,
+              "AdvertisedTimeAtLocation": "2026-09-05T10:00:00.000+02:00",
+              "AdvertisedTrainIdent": "837",
+              "Canceled": true,
+              "LocationSignature": "Cst",
+              "ModifiedTime": "2026-09-05T06:00:00.000Z",
+              "Operator": "SJ",
+              "ScheduledDepartureDateTime": "2026-09-05T00:00:00.000+02:00",
+              "TrackAtLocation": "11",
+              "ProductInformation": [
+                {
+                  "Code": "PNA047",
+                  "Description": "SJ Snabbtåg"
+                }
+              ]
+            },
+            {
+              "ActivityId": "a036",
+              "ActivityType": "Ankomst",
+              "Advertised": true,
+              "AdvertisedTimeAtLocation": "2026-09-05T10:40:00.000+02:00",
+              "AdvertisedTrainIdent": "837",
+              "Canceled": true,
+              "LocationSignature": "U",
+              "ModifiedTime": "2026-09-05T06:00:00.000Z",
+              "Operator": "SJ",
+              "ScheduledDepartureDateTime": "2026-09-05T00:00:00.000+02:00",
+              "TrackAtLocation": "1",
+              "ProductInformation": [
+                {
+                  "Code": "PNA047",
+                  "Description": "SJ Snabbtåg"
+                }
+              ]
+            },
+            {
+              "ActivityId": "a037",
+              "ActivityType": "Avgang",
+              "Advertised": true,
+              "AdvertisedTimeAtLocation": "2026-09-05T10:42:00.000+02:00",
+              "AdvertisedTrainIdent": "837",
+              "Canceled": true,
+              "LocationSignature": "U",
+              "ModifiedTime": "2026-09-05T06:00:00.000Z",
+              "Operator": "SJ",
+              "ScheduledDepartureDateTime": "2026-09-05T00:00:00.000+02:00",
+              "TrackAtLocation": "1",
+              "ProductInformation": [
+                {
+                  "Code": "PNA047",
+                  "Description": "SJ Snabbtåg"
+                }
+              ]
+            },
+            {
+              "ActivityId": "a038",
+              "ActivityType": "Ankomst",
+              "Advertised": true,
+              "AdvertisedTimeAtLocation": "2026-09-05T13:00:00.000+02:00",
+              "AdvertisedTrainIdent": "837",
+              "Canceled": true,
+              "LocationSignature": "Suc",
+              "ModifiedTime": "2026-09-05T07:00:00.000Z",
+              "Operator": "SJ",
+              "ScheduledDepartureDateTime": "2026-09-05T00:00:00.000+02:00",
+              "TrackAtLocation": "1",
+              "ProductInformation": [
+                {
+                  "Code": "PNA047",
+                  "Description": "SJ Snabbtåg"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expected": {
+    "status": "canceled",
+    "expectedDeparture": 810288000,
+    "expectedArrival": 810298800,
+    "originTrack": "11",
+    "originName": "Stockholm C",
+    "destinationName": "Sundsvall C",
+    "scheduledDeparture": 810288000,
+    "scheduledArrival": 810298800,
+    "progress": 0,
+    "updatedAt": 810284400,
+    "upcoming": []
+  }
+}

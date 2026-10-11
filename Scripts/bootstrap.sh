@@ -17,6 +17,13 @@ mkdir -p Config
   echo "DEVELOPMENT_TEAM = ${DEVELOPMENT_TEAM:-}"
   # Optional: your own bundle identifier prefix when building under another Apple team.
   echo "APP_BUNDLE_ID = ${APP_BUNDLE_ID:-se.tagradar.app}"
+  # A free Personal Team cannot sign the push entitlement; build without it (no Live Activity pushes).
+  if [ "${PERSONAL_TEAM:-}" = YES ]; then
+    echo "TAGRADAR_APP_ENTITLEMENTS = Tagradar/TagradarPersonalTeam.entitlements"
+  fi
+  # Optional: the Live Activity push server (docs/live-activity-push.md). Host only, no https://.
+  echo "PUSH_SERVER_HOST = ${PUSH_SERVER_HOST:-}"
+  echo "PUSH_SERVER_SECRET = ${PUSH_SERVER_SECRET:-}"
 } > Config/Secrets.xcconfig
 
 if ! command -v xcodegen >/dev/null 2>&1; then

@@ -15,11 +15,16 @@ final class TrainAlerts {
     private(set) var authorization: UNAuthorizationStatus = .notDetermined
     private(set) var mutedIDs: Set<String>
     private var states: [String: TrainAlertState]
+    /// Trains whose alerts the push server has been sending with their Live Activity. Kept across
+    /// launches: while the app was suspended the server told the user things this state never saw.
+    private var remoteIDs: Set<String>
+    private var authorizationLoaded = false
 
     private let center = UNUserNotificationCenter.current()
     private let logger = Logger(subsystem: "se.tagradar.app", category: "Alerts")
     private static let statesKey = "alerts.states"
     private static let mutedKey = "alerts.muted"
+    private static let remoteKey = "alerts.remote"
     private static let reminderLead: TimeInterval = 30 * 60
 
     init() {
@@ -31,6 +36,7 @@ final class TrainAlerts {
             states = [:]
         }
         mutedIDs = Set(defaults.stringArray(forKey: Self.mutedKey) ?? [])
+        remoteIDs = Set(defaults.stringArray(forKey: Self.remoteKey) ?? [])
         registerCategories()
     }
 
@@ -40,6 +46,15 @@ final class TrainAlerts {
 
     func refreshAuthorization() async {
         authorization = await center.notificationSettings().authorizationStatus
+        authorizationLoaded = true
+    }
+
+    /// `isAuthorized`, reading the setting first if this launch has not yet (a background launch).
+    func loadedAuthorization() async -> Bool {
+        if !authorizationLoaded {
+            await refreshAuthorization()
+        }
+        return isAuthorized
     }
 
     @discardableResult
@@ -66,11 +81,26 @@ final class TrainAlerts {
 
     /// Compares a refreshed snapshot with what the user was last told and posts what changed.
     /// `position` is only asked for when a notification is actually going out.
-    func process(_ snapshot: TrainSnapshot, names: StationNames, position: () async -> CLLocationCoordinate2D?) async {
+    ///
+    /// `remote` means the push server sends this train's alerts: the state only advances. The first
+    /// pass after the server stops (the activity ended or was dismissed) is silent too, because the
+    /// server may have told the user things while the app was suspended; it re-baselines the state.
+    func process(
+        _ snapshot: TrainSnapshot, names: StationNames, remote: Bool = false, position: () async -> CLLocationCoordinate2D?
+    ) async {
         let (alerts, state) = TrainAlertEngine.evaluate(previous: states[snapshot.id], current: snapshot)
         states[snapshot.id] = state
+        // Silent the first pass after the server stopped as well. That can drop an alert the app sees
+        // first right after the user unfollows, which beats repeating ones the server already sent.
+        let silent: Bool
+        if remote {
+            remoteIDs.insert(snapshot.id)
+            silent = true
+        } else {
+            silent = remoteIDs.remove(snapshot.id) != nil
+        }
         persist()
-        guard !alerts.isEmpty, isAuthorized, !mutedIDs.contains(snapshot.id) else { return }
+        guard !silent, !alerts.isEmpty, isAuthorized, !mutedIDs.contains(snapshot.id) else { return }
         var imageURL: URL?
         if let coordinate = await position() {
             imageURL = await NotificationMapSnapshot.render(coordinate: coordinate)
@@ -117,13 +147,21 @@ final class TrainAlerts {
             states[id] = nil
         }
         mutedIDs.subtract(stale)
+        remoteIDs.subtract(stale)
         persist()
         center.removePendingNotificationRequests(withIdentifiers: stale.map { "reminder.\($0)" })
+    }
+
+    /// The app takes this train's alerts back with an up-to-date state, so the next pass speaks.
+    func takeOver(_ id: String) {
+        remoteIDs.remove(id)
+        persist()
     }
 
     func forget(_ id: String) {
         states[id] = nil
         mutedIDs.remove(id)
+        remoteIDs.remove(id)
         persist()
         center.removePendingNotificationRequests(withIdentifiers: ["reminder.\(id)"])
         center.removeDeliveredNotifications(withIdentifiers: [id])
@@ -209,6 +247,7 @@ final class TrainAlerts {
             defaults.set(data, forKey: Self.statesKey)
         }
         defaults.set(Array(mutedIDs).sorted(), forKey: Self.mutedKey)
+        defaults.set(Array(remoteIDs).sorted(), forKey: Self.remoteKey)
     }
 }
 
@@ -223,9 +262,9 @@ extension TrainSnapshot {
 /// it on its own queue; it forwards to the app through Sendable closures.
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, Sendable {
     private let onOpen: @Sendable (URL) -> Void
-    private let onMute: @Sendable (String) -> Void
+    private let onMute: @Sendable (String) async -> Void
 
-    init(onOpen: @escaping @Sendable (URL) -> Void, onMute: @escaping @Sendable (String) -> Void) {
+    init(onOpen: @escaping @Sendable (URL) -> Void, onMute: @escaping @Sendable (String) async -> Void) {
         self.onOpen = onOpen
         self.onMute = onMute
     }
@@ -241,7 +280,8 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, Se
         switch response.actionIdentifier {
         case TrainAlerts.muteAction:
             if let id = info["trainID"] as? String {
-                onMute(id)
+                // Awaited: the action does not open the app, and iOS may suspend it once this returns.
+                await onMute(id)
             }
         default:
             if let raw = info["url"] as? String, let url = URL(string: raw) {

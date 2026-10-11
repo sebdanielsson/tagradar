@@ -1,0 +1,21 @@
+{
+  "name": "tagradar-push",
+  "private": true,
+  "description": "Sends ActivityKit pushes that keep Tågradar's Live Activities current.",
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.35.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
