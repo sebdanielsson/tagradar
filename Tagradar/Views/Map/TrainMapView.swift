@@ -1,5 +1,6 @@
 import MapKit
 import os
+import SwiftData
 import SwiftUI
 import TrafikverketKit
 
@@ -12,6 +13,10 @@ struct TrainMapView: View {
     var selectedKey: TrainKey?
     var selectedStation: TrainStation?
     var onSelectStation: (TrainStation) -> Void
+    /// What covers the edges of the map — the card, the status pill, the controls — in the map's
+    /// own points. The off-screen indicator stays inside what's left; `nil` hides it, for when the
+    /// card covers the whole map.
+    var indicatorInsets: EdgeInsets?
     var scope: Namespace.ID
 
     @Environment(LiveTrainStore.self) private var live
@@ -20,6 +25,7 @@ struct TrainMapView: View {
     @Environment(DelayIndex.self) private var delays
     @Environment(AppSettings.self) private var settings
     @Environment(\.colorScheme) private var colorScheme
+    @Query private var favorites: [FavoriteTrain]
 
     /// The trains actually handed to the map. Populated from `live.trains` outside of `body` (see
     /// `refreshDisplayedTrains`) so the nationwide position stream — which can update several times a
@@ -44,11 +50,54 @@ struct TrainMapView: View {
     /// The map's size in points, needed to judge how far apart the station dots actually look and
     /// how far a train has to move before its marker visibly does.
     @State private var mapSize: CGSize = .zero
+    /// Where the off-screen indicator points. See `SelectedTrainTracker` for why this isn't `@State`
+    /// values of its own.
+    @State private var indicator = SelectedTrainTracker()
+    /// Bumped to replay the selected marker's pulse when the indicator brings it back into view.
+    @State private var pulseCount = 0
+    @State private var holdBackEnded = 0
 
+    private static let mapSpace = "TrainMapView.map"
     private static let logger = Logger(subsystem: "se.tagradar.app", category: "TrainMapView")
 
     var body: some View {
-        Map(position: $camera, interactionModes: .all, selection: $selectedTrainID, scope: scope) {
+        MapReader { proxy in
+            map
+                // `.onEnd` too, so the final frame of a programmatic move always lands.
+                .onMapCameraChange(frequency: .continuous) { context in
+                    indicator.camera = context.camera
+                    updateIndicator(proxy)
+                }
+                .onMapCameraChange(frequency: .onEnd) { context in
+                    indicator.camera = context.camera
+                    indicator.cameraSettled()
+                    updateIndicator(proxy)
+                }
+                .onChange(of: indicatorInputs, initial: true) { _, _ in
+                    updateIndicator(proxy)
+                }
+                // Places the indicator when a hold-back runs out, should nothing else move by then.
+                // Via `indicatorInputs`: this closure would still see this render's insets.
+                .task(id: indicator.hiddenUntil) {
+                    guard let until = indicator.hiddenUntil else { return }
+                    try? await Task.sleep(for: .seconds(max(0, until.timeIntervalSinceNow) + 0.05))
+                    guard !Task.isCancelled else { return }
+                    holdBackEnded += 1
+                }
+                .coordinateSpace(.named(Self.mapSpace))
+                .overlay {
+                    SelectedTrainIndicator(tracker: indicator) {
+                        showSelectedTrain(proxy)
+                    }
+                }
+        }
+    }
+
+    private var map: some View {
+        // Resolved once per render rather than per annotation.
+        let selected = selectedTrain
+        let saved = savedTrainKeys
+        return Map(position: $camera, interactionModes: .all, selection: $selectedTrainID, scope: scope) {
             UserAnnotation()
             if let journey = journeys.cached(selectedKey) {
                 routeOverlay(for: journey)
@@ -83,21 +132,44 @@ struct TrainMapView: View {
                 }
                 .annotationTitles(.visible)
             }
-            ForEach(displayedTrains) { train in
+            ForEach(AmbientTrain.layers(of: displayedTrains, excluding: selectedTrainID, saved: saved)) { ambient in
+                let train = ambient.train
                 Annotation(coordinate: train.clCoordinate, anchor: .center) {
                     TrainMarker(
                         train: train,
-                        severity: settings.colorMarkersByDelay ? delays.severity(for: train.key) : .unknown,
-                        isSelected: train.id == selectedTrainID,
+                        severity: severity(of: train),
+                        isSelected: false,
                         showLabel: showLabels,
                         isStale: train.isStale(at: displayedAt),
-                        compact: compactMarkers
+                        // Every other train shrinks to a dot while one is selected, so the
+                        // selected one stands out from the crowd around it.
+                        compact: compactMarkers || selected != nil,
+                        isSaved: ambient.isSaved
                     )
                 } label: {
                     Text(train.displayNumber)
                 }
                 .annotationTitles(.hidden)
                 .tag(train.id)
+            }
+            // Last, so it's drawn on top of every other train instead of wherever it happens to
+            // fall in `displayedTrains`.
+            if let selected {
+                Annotation(coordinate: selected.clCoordinate, anchor: .center) {
+                    TrainMarker(
+                        train: selected,
+                        severity: severity(of: selected),
+                        isSelected: true,
+                        showLabel: true,
+                        isStale: selected.isStale(at: displayedAt),
+                        isSaved: selected.isSaved(in: saved),
+                        pulseTrigger: "\(selected.id)#\(pulseCount)"
+                    )
+                } label: {
+                    Text(selected.displayNumber)
+                }
+                .annotationTitles(.hidden)
+                .tag(selected.id)
             }
         }
         .mapStyle(mapStyle)
@@ -125,6 +197,11 @@ struct TrainMapView: View {
             cancelRefresh()
         }
         .onChange(of: settings.showInactiveTrains) { _, _ in
+            refreshDisplayedTrains()
+        }
+        // The other markers turn back from dots into arrows when the selection is cleared, and
+        // their headings weren't refreshed while they were dots (see `looksDifferent`).
+        .onChange(of: selectedTrainID) { _, _ in
             refreshDisplayedTrains()
         }
         .onChange(of: selectedKey) { _, _ in
@@ -294,13 +371,13 @@ struct TrainMapView: View {
         guard mapSize.width > 0, mapSize.height > 0 else { return next != displayedTrains }
         let latTolerance = visibleRegion.span.latitudeDelta / mapSize.height
         let lonTolerance = visibleRegion.span.longitudeDelta / mapSize.width
-        let compact = compactMarkers
+        let compact = othersCompact
         let now = Date.now
         return zip(displayedTrains, next).contains { old, new in
             old.id != new.id
                 || abs(old.coordinate.latitude - new.coordinate.latitude) >= latTolerance
                 || abs(old.coordinate.longitude - new.coordinate.longitude) >= lonTolerance
-                // A compact dot has no heading, but the selected train is always drawn in full.
+                // A dot has no heading, but the selected train is always drawn in full.
                 || ((!compact || new.id == selectedTrainID) && old.bearing != new.bearing)
                 || old.isActive != new.isActive
                 // What the marker shows (see `displayedAt`) against what it should show now.
@@ -458,56 +535,66 @@ struct TrainMapView: View {
     }
 }
 
-/// Runs `action` whenever `LiveTrainStore` merges a batch of positions. A modifier rather than an
-/// `onChange` in the caller's `body`: reading `updateCount` there re-renders the whole caller on
-/// every flush, several times a second — for `MapScreen` that is the map with all its annotations
-/// and the card presented from it. Here only this modifier's body is invalidated.
-private struct LiveTrainsUpdateObserver: ViewModifier {
-    @Environment(LiveTrainStore.self) private var live
-    let initial: Bool
-    let action: () -> Void
-
-    func body(content: Content) -> some View {
-        content.onChange(of: live.updateCount, initial: initial) { action() }
+/// The selected train, saved trains and the off-screen indicator.
+extension TrainMapView {
+    /// Whether every train but the selected one is drawn as a dot: zoomed out, or while one is
+    /// selected.
+    private var othersCompact: Bool {
+        compactMarkers || selectedTrain != nil
     }
-}
 
-extension View {
-    func onLiveTrainsUpdate(initial: Bool = false, perform action: @escaping () -> Void) -> some View {
-        modifier(LiveTrainsUpdateObserver(initial: initial, action: action))
+    /// The selected train as currently drawn, if it's on the map at all.
+    private var selectedTrain: LiveTrain? {
+        guard let selectedTrainID else { return nil }
+        return displayedTrains.first { $0.id == selectedTrainID }
     }
-}
 
-extension MKCoordinateRegion {
-    func padded(by fraction: Double) -> MKCoordinateRegion {
-        MKCoordinateRegion(
-            center: center,
-            span: MKCoordinateSpan(
-                latitudeDelta: min(180, span.latitudeDelta * (1 + fraction)),
-                longitudeDelta: min(360, span.longitudeDelta * (1 + fraction))
-            )
+    /// Keys rather than `FavoriteTrain.id` strings: building a key's id formats its date, which is
+    /// too slow to do for every train on every render.
+    private var savedTrainKeys: Set<TrainKey> {
+        Set(favorites.map(\.key))
+    }
+
+    private func severity(of train: LiveTrain) -> DelayIndex.Severity {
+        settings.colorMarkersByDelay ? delays.severity(for: train.key) : .unknown
+    }
+
+    private var indicatorInputs: SelectedTrainTracker.Inputs {
+        SelectedTrainTracker.Inputs(
+            displayedAt: displayedAt,
+            selectedTrainID: selectedTrainID,
+            insets: indicatorInsets,
+            mapSize: mapSize,
+            severity: selectedTrain.map(severity(of:)),
+            holdBackEnded: holdBackEnded
         )
     }
 
-    func contains(_ coordinate: CLLocationCoordinate2D) -> Bool {
-        abs(coordinate.latitude - center.latitude) <= span.latitudeDelta / 2
-            && abs(coordinate.longitude - center.longitude) <= span.longitudeDelta / 2
+    /// Pans back to the selected train from the off-screen indicator and replays its pulse.
+    private func showSelectedTrain(_ proxy: MapProxy) {
+        guard let train = selectedTrain else { return }
+        pulseCount += 1
+        guard let next = indicator.camera(showing: train, proxy: proxy, space: .named(Self.mapSpace), mapSize: mapSize)
+        else { return }
+        withAnimation(.smooth) { camera = .camera(next) }
     }
 
-    /// A region tightly framing every coordinate, padded so edge stops and their labels aren't
-    /// clipped. `nil` if there's nothing to fit.
-    init?(fitting coordinates: [CLLocationCoordinate2D]) {
-        guard !coordinates.isEmpty else { return nil }
-        let lats = coordinates.map(\.latitude)
-        let lons = coordinates.map(\.longitude)
-        guard let minLat = lats.min(), let maxLat = lats.max(),
-              let minLon = lons.min(), let maxLon = lons.max() else { return nil }
-        self.init(
-            center: CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2),
-            span: MKCoordinateSpan(
-                latitudeDelta: max((maxLat - minLat) * 1.4, 0.15),
-                longitudeDelta: max((maxLon - minLon) * 1.4, 0.15)
-            )
+    private func updateIndicator(_ proxy: MapProxy) {
+        guard let train = selectedTrain else {
+            indicator.clear()
+            return
+        }
+        // Only hidden, not cleared: the card covering the map isn't a new selection to wait for.
+        guard let insets = indicatorInsets else {
+            indicator.update(to: nil)
+            return
+        }
+        indicator.update(
+            train: train,
+            color: TrainMarker.color(for: train, severity: severity(of: train)),
+            proxy: proxy,
+            space: .named(Self.mapSpace),
+            bounds: CGRect(origin: .zero, size: mapSize).inset(by: insets)
         )
     }
 }

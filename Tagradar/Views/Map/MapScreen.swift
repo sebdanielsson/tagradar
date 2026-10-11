@@ -23,6 +23,9 @@ struct MapScreen: View {
     /// the signature alone is not: selecting the same station again after a train was pushed from
     /// its board would otherwise leave that train on screen instead of reopening the board.
     @State private var stationBoardEpoch = 0
+    /// Bottom of the status pill and buttons along the top of the map, in window points — where
+    /// the map, which runs up under them, stops being covered.
+    @State private var topChromeBottom: CGFloat = 0
     @Namespace private var mapScope
 
     /// Height of the collapsed card: the search field with breathing room under the grabber.
@@ -126,7 +129,7 @@ struct MapScreen: View {
         }
     }
 
-    private var map: some View {
+    private func map(indicatorInsets: EdgeInsets?) -> some View {
         @Bindable var mapState = mapState
         return TrainMapView(
             camera: $mapState.camera,
@@ -135,8 +138,14 @@ struct MapScreen: View {
             selectedKey: mapState.selectedKey,
             selectedStation: mapState.selectedStation,
             onSelectStation: { focus(on: $0) },
+            indicatorInsets: indicatorInsets,
             scope: mapScope
         )
+    }
+
+    /// Records where the chrome along the top of the map ends; see `topChromeBottom`.
+    private func measuringTopChrome(_ chrome: some View) -> some View {
+        chrome.onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { topChromeBottom = $0 }
     }
 
     // MARK: iPhone
@@ -156,18 +165,36 @@ struct MapScreen: View {
         }
     }
 
+    /// What covers the iPhone map: the status pill on top, the card at its current detent below,
+    /// and the controls along the trailing edge. `nil` at the large detent, where the card covers
+    /// all of it.
+    private func compactIndicatorInsets(containerHeight: CGFloat) -> EdgeInsets? {
+        guard mapState.sheetDetent != .large else { return nil }
+        return EdgeInsets(
+            top: topChromeBottom,
+            leading: 0,
+            bottom: controlsBottomPadding(containerHeight: containerHeight),
+            trailing: Self.controlsColumnWidth
+        )
+    }
+
+    /// `MapControlsCluster`'s width and the padding beside it.
+    private static let controlsColumnWidth: CGFloat = 44 + 12 + 8
+
     private func compactMap(containerHeight: CGFloat) -> some View {
         @Bindable var mapState = mapState
-        return map
+        return map(indicatorInsets: compactIndicatorInsets(containerHeight: containerHeight))
             .ignoresSafeArea(edges: .top)
             .safeAreaInset(edge: .top, spacing: 0) {
-                HStack {
-                    StatusPill()
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.top, 4)
-                .padding(.bottom, 8)
+                measuringTopChrome(
+                    HStack {
+                        StatusPill()
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 4)
+                    .padding(.bottom, 8)
+                )
             }
             .overlay(alignment: .bottomTrailing) {
                 MapControlsCluster(camera: $mapState.camera)
@@ -210,9 +237,9 @@ struct MapScreen: View {
             )
             .navigationSplitViewColumnWidth(min: 320, ideal: 360, max: 440)
         } detail: {
-            map
+            map(indicatorInsets: EdgeInsets(top: topChromeBottom, leading: 0, bottom: 0, trailing: 0))
                 .ignoresSafeArea(edges: .top)
-                .safeAreaInset(edge: .top, spacing: 0) { regularTopOverlay }
+                .safeAreaInset(edge: .top, spacing: 0) { measuringTopChrome(regularTopOverlay) }
                 .mapScope(mapScope)
                 // The system bar would only carry the sidebar toggle, and an otherwise empty bar
                 // collapses along with it; the toggle lives in the overlay instead.
