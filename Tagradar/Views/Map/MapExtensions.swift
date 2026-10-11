@@ -54,3 +54,15 @@ extension MKCoordinateRegion {
         )
     }
 }
+
+extension CGRect {
+    /// This rectangle less `insets` on each edge, with leading taken as the left.
+    func inset(by insets: EdgeInsets) -> CGRect {
+        CGRect(
+            x: minX + insets.leading,
+            y: minY + insets.top,
+            width: width - insets.leading - insets.trailing,
+            height: height - insets.top - insets.bottom
+        )
+    }
+}

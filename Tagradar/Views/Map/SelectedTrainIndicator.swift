@@ -20,13 +20,44 @@ final class SelectedTrainTracker {
         var color: Color
     }
 
+    /// Everything the placement depends on apart from the camera, which `TrainMapView` reports
+    /// frame by frame; a change to any of it re-places the indicator.
+    struct Inputs: Equatable {
+        let displayedAt: Date
+        let selectedTrainID: String?
+        let insets: EdgeInsets?
+        let mapSize: CGSize
+        let severity: DelayIndex.Severity?
+    }
+
     /// `nil` while the selected train is in view, or there is none.
     private(set) var placement: Placement?
+    /// The map's camera as of the last frame, for panning back with the zoom, heading and pitch
+    /// kept. Not observed: nothing on screen depends on it.
+    @ObservationIgnored var camera: MapCamera?
 
     func update(to placement: Placement?) {
         // Assigning an equal value still notifies observers.
         guard placement != self.placement else { return }
         self.placement = placement
+    }
+
+    /// A camera that puts `train` in the middle of the unobscured area, keeping the zoom, heading
+    /// and pitch the user chose. `nil` before the map has reported a camera.
+    func camera(showing train: LiveTrain, proxy: MapProxy, space: NamedCoordinateSpace, mapSize: CGSize) -> MapCamera? {
+        guard let camera else { return nil }
+        // The camera's centre is the map's middle; moving it by the train's offset from the middle
+        // of the unobscured area lands the train there, card or no card.
+        var center = train.clCoordinate
+        if let placement {
+            let point = CGPoint(
+                x: mapSize.width / 2 + placement.target.x - placement.bounds.midX,
+                y: mapSize.height / 2 + placement.target.y - placement.bounds.midY
+            )
+            // `nil` past the horizon of a pitched map; the train itself then goes to the middle.
+            center = proxy.convert(point, from: space) ?? center
+        }
+        return MapCamera(centerCoordinate: center, distance: camera.distance, heading: camera.heading, pitch: camera.pitch)
     }
 
     /// Places the indicator for `train`, or hides it while the train is in view. In view means
@@ -128,19 +159,25 @@ struct SelectedTrainIndicator: View {
         return (CGPoint(x: center.x + dx * scale, y: center.y + dy * scale), angle)
     }
 
-    /// `850 m` or `14 km` (miles where the locale uses them). The unit is picked here rather than
-    /// with `usage: .road`, which in a Swedish region gives Scandinavian miles — `3 smi` — far too
-    /// coarse for a train a few kilometres off-screen.
+    /// `850 m` or `14 km` (`500 ft` or `14 mi` where the locale uses miles). The unit is picked
+    /// here rather than with `usage: .road`, which in a Swedish region gives Scandinavian miles —
+    /// `3 smi` — far too coarse for a train a few kilometres off-screen.
     private static func distance(_ meters: CLLocationDistance) -> String {
         let usesMiles = [Locale.MeasurementSystem.us, .uk].contains(Locale.current.measurementSystem)
-        let measurement: Measurement<UnitLength> = if usesMiles {
-            Measurement(value: meters, unit: UnitLength.meters).converted(to: .miles)
-        } else if meters < 1000 {
-            Measurement(value: (meters / 50).rounded() * 50, unit: .meters)
+        let small: UnitLength = usesMiles ? .feet : .meters
+        let large: UnitLength = usesMiles ? .miles : .kilometers
+        let length = Measurement(value: meters, unit: UnitLength.meters)
+        // Rounded to 50 before the switch, so 990 m reads `1 km` rather than `1000 m`; never below
+        // 50, since a train out of view isn't `0 m` away.
+        let rounded = max(50, (length.converted(to: small).value / 50).rounded() * 50)
+        let threshold = Measurement(value: 1, unit: large).converted(to: small).value
+        let isSmall = usesMiles ? meters < 0.1 * 1609.344 : rounded < threshold
+        let measurement = if isSmall {
+            Measurement(value: rounded, unit: small)
         } else {
-            Measurement(value: meters, unit: UnitLength.meters).converted(to: .kilometers)
+            length.converted(to: large)
         }
-        let digits = measurement.value < 10 && measurement.unit != .meters ? 1 : 0
+        let digits = measurement.value < 10 && measurement.unit == large ? 1 : 0
         return measurement.formatted(.measurement(
             width: .abbreviated,
             usage: .asProvided,

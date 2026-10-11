@@ -139,7 +139,6 @@ struct MapScreen: View {
             selectedStation: mapState.selectedStation,
             onSelectStation: { focus(on: $0) },
             indicatorInsets: indicatorInsets,
-            onShowSelectedTrain: showSelectedTrain,
             scope: mapScope
         )
     }
@@ -396,14 +395,6 @@ struct MapScreen: View {
         mapState.sheetDetent = .medium
     }
 
-    /// Pans back to the selected train from the off-screen indicator, at the zoom the user chose.
-    private func showSelectedTrain() {
-        guard let id = mapState.selectedTrainID, let train = live.train(id: id) else { return }
-        withAnimation(.smooth) {
-            mapState.camera = cameraFocusing(train.clCoordinate, span: mapState.visibleRegion.span, clearOfCard: !isRegular)
-        }
-    }
-
     /// Selects a train from a list or search result: zooms to it when it has a live position.
     private func select(_ key: TrainKey) {
         focus(on: key)
@@ -477,21 +468,9 @@ struct MapScreen: View {
         spanDegrees: CLLocationDegrees,
         clearOfCard: Bool
     ) -> MapCameraPosition {
-        cameraFocusing(
-            coordinate,
-            span: MKCoordinateSpan(latitudeDelta: spanDegrees, longitudeDelta: spanDegrees),
-            clearOfCard: clearOfCard
-        )
-    }
-
-    private func cameraFocusing(
-        _ coordinate: CLLocationCoordinate2D,
-        span: MKCoordinateSpan,
-        clearOfCard: Bool
-    ) -> MapCameraPosition {
-        let offset = clearOfCard ? span.latitudeDelta * 0.22 : 0
+        let offset = clearOfCard ? spanDegrees * 0.22 : 0
         let center = CLLocationCoordinate2D(latitude: coordinate.latitude - offset, longitude: coordinate.longitude)
-        return .region(MKCoordinateRegion(center: center, span: span))
+        return .region(MKCoordinateRegion(center: center, span: MKCoordinateSpan(latitudeDelta: spanDegrees, longitudeDelta: spanDegrees)))
     }
 
     /// Selects a station: zooms the camera there, marks it on the map, and opens its board — used

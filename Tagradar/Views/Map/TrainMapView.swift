@@ -17,8 +17,6 @@ struct TrainMapView: View {
     /// own points. The off-screen indicator stays inside what's left; `nil` hides it, for when the
     /// card covers the whole map.
     var indicatorInsets: EdgeInsets?
-    /// Brings the selected train back into view, from the off-screen indicator.
-    var onShowSelectedTrain: () -> Void
     var scope: Namespace.ID
 
     @Environment(LiveTrainStore.self) private var live
@@ -64,7 +62,14 @@ struct TrainMapView: View {
     var body: some View {
         MapReader { proxy in
             map
-                .onMapCameraChange(frequency: .continuous) { _ in
+                // Both: `.continuous` follows a pan frame by frame, and `.onEnd` makes sure the
+                // final frame of a programmatic move lands.
+                .onMapCameraChange(frequency: .continuous) { context in
+                    indicator.camera = context.camera
+                    updateIndicator(proxy)
+                }
+                .onMapCameraChange(frequency: .onEnd) { context in
+                    indicator.camera = context.camera
                     updateIndicator(proxy)
                 }
                 .onChange(of: indicatorInputs, initial: true) { _, _ in
@@ -73,8 +78,7 @@ struct TrainMapView: View {
                 .coordinateSpace(.named(Self.mapSpace))
                 .overlay {
                     SelectedTrainIndicator(tracker: indicator) {
-                        pulseCount += 1
-                        onShowSelectedTrain()
+                        showSelectedTrain(proxy)
                     }
                 }
         }
@@ -556,24 +560,23 @@ extension TrainMapView {
         settings.colorMarkersByDelay ? delays.severity(for: train.key) : .unknown
     }
 
-    /// Everything the indicator depends on apart from the camera, which `onMapCameraChange`
-    /// reports frame by frame.
-    private struct IndicatorInputs: Equatable {
-        let displayedAt: Date
-        let selectedTrainID: String?
-        let insets: EdgeInsets?
-        let mapSize: CGSize
-        let severity: DelayIndex.Severity?
-    }
-
-    private var indicatorInputs: IndicatorInputs {
-        IndicatorInputs(
+    private var indicatorInputs: SelectedTrainTracker.Inputs {
+        SelectedTrainTracker.Inputs(
             displayedAt: displayedAt,
             selectedTrainID: selectedTrainID,
             insets: indicatorInsets,
             mapSize: mapSize,
             severity: selectedTrain.map(severity(of:))
         )
+    }
+
+    /// Pans back to the selected train from the off-screen indicator and replays its pulse.
+    private func showSelectedTrain(_ proxy: MapProxy) {
+        guard let train = selectedTrain else { return }
+        pulseCount += 1
+        guard let next = indicator.camera(showing: train, proxy: proxy, space: .named(Self.mapSpace), mapSize: mapSize)
+        else { return }
+        withAnimation(.smooth) { camera = .camera(next) }
     }
 
     private func updateIndicator(_ proxy: MapProxy) {
@@ -586,12 +589,7 @@ extension TrainMapView {
             color: TrainMarker.color(for: train, severity: severity(of: train)),
             proxy: proxy,
             space: .named(Self.mapSpace),
-            bounds: CGRect(
-                x: insets.leading,
-                y: insets.top,
-                width: mapSize.width - insets.leading - insets.trailing,
-                height: mapSize.height - insets.top - insets.bottom
-            )
+            bounds: CGRect(origin: .zero, size: mapSize).inset(by: insets)
         )
     }
 }
