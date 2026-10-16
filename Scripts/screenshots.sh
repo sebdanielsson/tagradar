@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# Captures the App Store screenshot set on the simulators whose pixel sizes App Store Connect requires:
+# Captures the App Store screenshot set on the simulators whose pixel sizes App Store Connect asks for:
 #   iPhone 6.9" (iPhone 17 Pro Max)   1320 × 2868
 #   iPad 13"    (iPad Pro 13-inch)    2064 × 2752
+#   iPhone Duo  outer display         1398 × 2034   (optional until April 2027)
+#               inner display         2853 × 2007   (landscape: the sidebar, map and inspector side by side)
 #
-# Output: fastlane/screenshots/<locale>/<iphone|ipad>-<nn>-<name>.png, which is what
-# `fastlane release` uploads. deliver picks the device family from the pixel size, so every locale
-# is one flat folder.
+# Output: fastlane/screenshots/<locale>/<iphone|ipad|duo-outer|duo-inner>-<nn>-<name>.png, which is
+# what `fastlane release` uploads. deliver picks the device family from the pixel size, so every
+# locale is one flat folder; both Duo displays go into its one iPhone Duo set.
 #
-#   Scripts/screenshots.sh                         # both devices, both locales
+#   Scripts/screenshots.sh                         # every device, both locales
 #   Scripts/screenshots.sh "iPhone 17 Pro Max"     # one device
+#   DUO_DISPLAYS=inner Scripts/screenshots.sh "iPhone Duo"   # one Duo display
 #   LOCALES=sv Scripts/screenshots.sh              # one locale
 #   TRAIN=560 Scripts/screenshots.sh               # pin the train instead of picking one live
 #   SKIP_BUILD=1 Scripts/screenshots.sh            # reuse the last build
@@ -16,6 +19,10 @@
 # Needs TRV_API_KEY in .env.local and `idb` (https://fbidb.io): the iPhone captures drag the bottom
 # card to the height that frames each subject, and the iPad ones open the sidebar. Which screen is showing is decided by the
 # debug launch arguments -save/-train/-station, so no UI automation has to find its way there.
+#
+# The iPhone Duo's pose (closed or open) can only be changed with DeviceHub's controls, so the Duo run
+# asks for it: close the device for the outer display, open it fully in landscape for the inner one.
+# Run from a terminal it waits for Return; otherwise it stops with a message.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -39,8 +46,9 @@ STATION="${STATION:-Cst}"
 
 DEVICES=("$@")
 if [ $# -eq 0 ]; then
-  DEVICES=("iPhone 17 Pro Max" "iPad Pro 13-inch (M5)")
+  DEVICES=("iPhone 17 Pro Max" "iPad Pro 13-inch (M5)" "iPhone Duo")
 fi
+read -r -a DUO_DISPLAY_LIST <<<"${DUO_DISPLAYS:-outer inner}"
 read -r -a LOCALE_LIST <<<"${LOCALES:-en-US sv}"
 
 # The train to feature. Pinning TRAIN makes a rerun reproducible; otherwise pick one that is
@@ -194,19 +202,34 @@ fi
 APP=$(find "$DERIVED/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name "Tagradar.app" | head -1)
 [ -n "$APP" ] || { echo "No build in $DERIVED — run without SKIP_BUILD"; exit 1; }
 
-udid_for() {
-  xcrun simctl list devices available -j | python3 -c "
-import json,sys
-for runtime, devices in json.load(sys.stdin)['devices'].items():
-    if 'iOS' not in runtime: continue
-    for device in devices:
-        if device['name'] == sys.argv[1]: print(device['udid']); sys.exit(0)
-sys.exit(1)" "$1"
+# The iPhone Duo's displays, by the framebuffer size each one reports: `simctl io screenshot` takes
+# the main display unless told which.
+duo_display_id() {
+  xcrun simctl io "$UDID" enumerate | awk -v want="$1" '
+    /^Port:/ { uuid = "" }
+    /UUID:/ && uuid == "" { uuid = $2 }
+    /Default width:/ && $3 == want { print uuid; exit }'
+}
+
+# Whether a display is showing anything: a display that is off captures as a flat black frame, which
+# compresses to a few kilobytes where a lit one is hundreds.
+display_is_lit() {
+  local dir size
+  dir=$(mktemp -d -t tagradar-display)
+  xcrun simctl io "$UDID" screenshot --display="$1" "$dir/probe.png" >/dev/null 2>&1
+  size=$(stat -f %z "$dir/probe.png" 2>/dev/null || echo 0)
+  rm -rf "$dir"
+  [ "$size" -gt 150000 ]
 }
 
 for DEVICE in "${DEVICES[@]}"; do
-  case "$DEVICE" in iPad*) PREFIX="ipad";; *) PREFIX="iphone";; esac
-  UDID=$(udid_for "$DEVICE") || { echo "No simulator named '$DEVICE'"; exit 1; }
+  case "$DEVICE" in
+    iPad*) PREFIX="ipad";;
+    "iPhone Duo") PREFIX="duo";;
+    *) PREFIX="iphone";;
+  esac
+  # Newest runtime first: the iOS 27 design, and the iPhone Duo only exists on iOS 27.1 or later.
+  UDID=$(Scripts/simulator-udid.sh "$DEVICE") || { echo "No simulator named '$DEVICE'"; exit 1; }
 
   xcrun simctl boot "$UDID" 2>/dev/null || true
   xcrun simctl bootstatus "$UDID" -b >/dev/null
@@ -232,9 +255,11 @@ for DEVICE in "${DEVICES[@]}"; do
     mkdir -p "$OUT"
     # This device's previous captures, so a renamed or dropped shot can't linger and be stripped,
     # listed and uploaded alongside the new ones. Other device families and locales are untouched,
-    # which is what makes a partial rerun safe.
-    rm -f "$OUT/$PREFIX"-*.png
+    # which is what makes a partial rerun safe. The Duo's two displays are cleared one at a time,
+    # when each is captured, so a run that only retakes one keeps the other.
+    [ "$PREFIX" = duo ] || rm -f "$OUT/$PREFIX"-*.png
     echo "▶ $DEVICE · $LOCALE → $OUT/$PREFIX-*.png"
+    SHOT_DISPLAY=()
 
     # Language is passed per launch rather than written to the simulator's global preferences, which
     # would need a reboot between locales.
@@ -247,7 +272,7 @@ for DEVICE in "${DEVICES[@]}"; do
     }
     shot() {
       settle "${2:-$SETTLE}"
-      xcrun simctl io "$UDID" screenshot "$OUT/$PREFIX-$1.png" >/dev/null 2>&1
+      xcrun simctl io "$UDID" screenshot "${SHOT_DISPLAY[@]}" "$OUT/$PREFIX-$1.png" >/dev/null 2>&1
       echo "  ✓ $PREFIX-$1"
     }
     # Drags on the card, in points on a 440 × 956 screen. The detent cannot be set from the outside —
@@ -285,6 +310,54 @@ for DEVICE in "${DEVICES[@]}"; do
         exit 1
       fi
     }
+
+    # Waits until the Duo is in the pose a display needs: closed for the outer one, open in landscape
+    # for the inner one, which is where the sidebar, the map and the inspector fit side by side.
+    require_duo_pose() {
+      local which="$1" id pose probe dir width height
+      if [ "$which" = outer ]; then
+        id=$(duo_display_id 1398); pose="closed"
+      else
+        id=$(duo_display_id 2007); pose="fully open, in landscape"
+      fi
+      [ -n "$id" ] || { echo "Could not find the iPhone Duo's $which display" >&2; exit 1; }
+      while true; do
+        if display_is_lit "$id"; then
+          [ "$which" = outer ] && break
+          dir=$(mktemp -d -t tagradar-pose)
+          probe="$dir/probe.png"
+          xcrun simctl io "$UDID" screenshot --display="$id" "$probe" >/dev/null 2>&1
+          read -r width height <<<"$(sips -g pixelWidth -g pixelHeight "$probe" | awk '/pixelWidth|pixelHeight/ {printf "%s ", $2}')"
+          rm -rf "$dir"
+          [ "${width:-0}" -gt "${height:-1}" ] && break
+        fi
+        if [ -t 0 ]; then
+          read -r -p "  Put the iPhone Duo $pose in DeviceHub, then press Return… "
+        else
+          echo "The iPhone Duo's $which display needs the device $pose. Set it in DeviceHub and rerun." >&2
+          exit 1
+        fi
+      done
+      SHOT_DISPLAY=(--display="$id")
+    }
+
+    if [ "$PREFIX" = duo ]; then
+      # No card drags or sidebar taps: on the outer display the card opens at its middle height, which
+      # frames each of these subjects, and in landscape the inner display shows the sidebar already.
+      for WHICH in "${DUO_DISPLAY_LIST[@]}"; do
+        require_duo_pose "$WHICH"
+        rm -f "$OUT/duo-$WHICH"-*.png
+        PREFIX="duo-$WHICH"
+        launch -save "$SAVED"
+        shot "01-map"
+        launch -train "$TRAIN" -save "$SAVED"
+        shot "02-train"
+        launch -station "$STATION" -save "$SAVED"
+        shot "03-station"
+        PREFIX="duo"
+      done
+      continue
+    fi
 
     require_portrait
     if [ "$PREFIX" = iphone ]; then

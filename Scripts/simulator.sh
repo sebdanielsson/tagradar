@@ -30,21 +30,7 @@ fi
 
 [ -d Tagradar.xcodeproj ] || Scripts/bootstrap.sh
 
-# Runtime keys look like com.apple.CoreSimulator.SimRuntime.iOS-27-1. The same device name exists once per
-# installed runtime, so take the newest unless RUNTIME asks for a specific one.
-UDID=$(xcrun simctl list devices available -j | python3 -c "
-import json,sys
-data=json.load(sys.stdin)['devices']
-want,runtime_wanted=sys.argv[1],sys.argv[2]
-matches=[]
-for runtime,devs in data.items():
-    if '.iOS-' not in runtime: continue
-    version=tuple(int(p) for p in runtime.rsplit('.iOS-',1)[1].split('-'))
-    if runtime_wanted and version!=tuple(int(p) for p in runtime_wanted.split('.')): continue
-    matches+=[(version,d['udid']) for d in devs if d['name']==want]
-if not matches: sys.exit(1)
-print(max(matches)[1])
-" "$DEVICE" "${RUNTIME:-}") || {
+UDID=$(Scripts/simulator-udid.sh "$DEVICE") || {
   echo "No simulator named '$DEVICE'${RUNTIME:+ on iOS $RUNTIME}. Available:"
   xcrun simctl list devices available | grep -E "^-- iOS|iPhone|iPad"
   exit 1
