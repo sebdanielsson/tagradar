@@ -143,7 +143,7 @@ App Store Connect needs one set per device family the app runs on; `TARGETED_DEV
 
 Smaller iPhone and iPad sizes are scaled by Apple from the first two, so nothing else has to be produced. The iPhone Duo set is optional until April 2027, when Apple starts requiring it for apps built with the iOS 27.1 SDK or later; uploading it earns the product page the "optimized for iPhone Duo" badge. Both Duo displays share one set of up to ten images. The iOS 27.1 simulator runtime only runs the iPhone Duo, so the other two families are taken on iOS 27.0.
 
-`Scripts/screenshots.sh` regenerates the whole set — every device, both locales — and strips the alpha channel the simulator always writes (`Scripts/strip-alpha.swift`). It needs `TRV_API_KEY` in `.env.local` and [`idb`](https://fbidb.io): the iPhone shots drag the bottom card to the height that frames each subject, and the iPad shots open the sidebar.
+`Scripts/screenshots.sh` regenerates the whole set — every device, both locales — and strips the alpha channel the simulator always writes (`Scripts/strip-alpha.swift`). It needs `TRV_API_KEY` in `.env.local` and [`idb`](https://fbidb.io): the iPhone shots tap the bottom card's grabber to bring it to the height that frames each subject (idb's drags no longer resize a sheet on iOS 27), and the iPad shots open the sidebar.
 
 The Duo's pose can only be changed with DeviceHub's controls (there is no `simctl` command for it), so the script asks for it: closed for the outer display, then fully open in landscape for the inner one. Run from a terminal it waits for Return after each; otherwise it stops and says which pose it needs. `DUO_DISPLAYS=outer` or `inner` retakes one display and leaves the other's images alone.
 

@@ -16,7 +16,7 @@
 #   TRAIN=560 Scripts/screenshots.sh               # pin the train instead of picking one live
 #   SKIP_BUILD=1 Scripts/screenshots.sh            # reuse the last build
 #
-# Needs TRV_API_KEY in .env.local and `idb` (https://fbidb.io): the iPhone captures drag the bottom
+# Needs TRV_API_KEY in .env.local and `idb` (https://fbidb.io): the iPhone captures move the bottom
 # card to the height that frames each subject, and the iPad ones open the sidebar. Which screen is showing is decided by the
 # debug launch arguments -save/-train/-station, so no UI automation has to find its way there.
 #
@@ -275,16 +275,43 @@ for DEVICE in "${DEVICES[@]}"; do
       xcrun simctl io "$UDID" screenshot "${SHOT_DISPLAY[@]}" "$OUT/$PREFIX-$1.png" >/dev/null 2>&1
       echo "  ✓ $PREFIX-$1"
     }
-    # Drags on the card, in points on a 440 × 956 screen. The detent cannot be set from the outside —
-    # `presentationDetents(selection:)` snaps back to the middle height whenever the card's content
-    # changes — so these are the same gestures a hand would make.
-    swipe() {
-      "$IDB" ui swipe --udid "$UDID" --duration 0.4 "$@" >/dev/null 2>&1
+    # The card's grabber is an accessibility button that steps the card through its heights (middle,
+    # full, search bar only), and tapping it is the one reliable way to move the card from outside:
+    # the detent cannot be set from the app's launch arguments, because `presentationDetents(selection:)`
+    # snaps back to the middle height whenever the card's content changes, and on iOS 27 idb's
+    # synthetic drags scroll the card's content but no longer resize it. The grabber is found by its
+    # traits rather than its label, which is localised. Points on a 440 × 956 screen.
+    grabber() {
+      "$IDB" ui describe-all --udid "$UDID" 2>/dev/null | python3 -c "
+import json, sys
+for element in json.load(sys.stdin):
+    if element.get('type') == 'Button' and 'Scrollable' in (element.get('traits') or []):
+        frame = element['frame']
+        print(round(frame['x'] + frame['width'] / 2), round(frame['y'] + frame['height'] / 2))
+        break"
+    }
+    # Taps cycle the card search bar → middle → full → search bar, and only about every other one
+    # lands, so this taps until the grabber is where the wanted height puts it.
+    card_to() {
+      local x y
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        read -r x y <<<"$(grabber)"
+        [ -n "$y" ] || { echo "Could not find the card's grabber" >&2; exit 1; }
+        case "$1" in
+          full) [ "$y" -lt 150 ] && return;;
+          collapsed) [ "$y" -gt 800 ] && return;;
+        esac
+        "$IDB" ui tap --udid "$UDID" "$x" "$y" >/dev/null 2>&1
+        settle 2
+      done
+      echo "Could not bring the card to its $1 height" >&2
+      exit 1
+    }
+    # Scrolling the card's content still works as a drag.
+    scroll_card() {
+      "$IDB" ui swipe --udid "$UDID" --duration 0.4 220 780 220 300 >/dev/null 2>&1
       settle 2
     }
-    expand_card() { swipe 220 470 220 90; }
-    collapse_card() { swipe 220 450 220 930; }
-    scroll_card() { swipe 220 780 220 300; }
     # The iPad sidebar is hidden in portrait; its glass toggle sits in the map's top-left corner.
     # Not idempotent: in landscape the sidebar is already open and this would close it, hence the
     # portrait check below.
@@ -369,16 +396,16 @@ for DEVICE in "${DEVICES[@]}"; do
       shot "02-train"
       launch -train "$TRAIN"
       settle
-      expand_card
+      card_to full
       scroll_card
       shot "03-stops" 2
       launch -station "$STATION"
       settle
-      expand_card
+      card_to full
       shot "04-station" 2
       launch -train "$TRAIN"
       settle
-      collapse_card
+      card_to collapsed
       shot "05-route" 2
     else
       # Portrait: the map alone, then a train inspector beside it, then the same two subjects
