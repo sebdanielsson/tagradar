@@ -189,6 +189,7 @@ struct MapScreen: View {
                 measuringTopChrome(
                     HStack {
                         StatusPill()
+                            .avoidingReservedRegions()
                         Spacer()
                     }
                     .padding(.horizontal)
@@ -198,6 +199,7 @@ struct MapScreen: View {
             }
             .overlay(alignment: .bottomTrailing) {
                 MapControlsCluster(camera: $mapState.camera)
+                    .avoidingReservedRegions()
                     .padding(.trailing, 12)
                     .padding(.bottom, controlsBottomPadding(containerHeight: containerHeight))
                     .animation(.smooth(duration: 0.35), value: mapState.sheetDetent)
@@ -315,8 +317,10 @@ struct MapScreen: View {
             .buttonStyle(.glass)
             .labelStyle(.iconOnly)
             StatusPill()
+                .avoidingReservedRegions()
             Spacer()
             MapControlsCluster(camera: $mapState.camera)
+                .avoidingReservedRegions()
         }
         .padding(.horizontal)
         .padding(.top, 4)
