@@ -357,6 +357,13 @@ jobs:
           BODY: ${{ needs.release-please.outputs.body }}
         run: Scripts/ci/release-notes.sh
 
+      # deliver tells device families apart by pixel size, and learned the iPhone Duo's in fastlane
+      # 2.241.1. The xcode-27 image ships 2.241.0, which has no display type for those screenshots.
+      - name: Install fastlane 2.241.1 or later
+        run: |
+          gem install fastlane --version '>= 2.241.1' --no-document
+          fastlane --version
+
       - name: Upload to App Store Connect and submit for review
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
