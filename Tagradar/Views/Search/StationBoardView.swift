@@ -96,18 +96,23 @@ struct StationBoardView: View {
         .navigationTitle(station.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                if station.coordinate != nil {
+            // Separate items so Save outlasts Directions when the bar overflows (see `toolbarOverflow`).
+            if station.coordinate != nil {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill") {
                         openDirections()
                     }
                 }
+                .toolbarOverflow(.overflowFirst)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button(isFavorite ? "Saved" : "Save", systemImage: isFavorite ? "star.fill" : "star") {
                     toggleFavorite()
                 }
                 .tint(isFavorite ? .yellow : nil)
                 .sensoryFeedback(.success, trigger: isFavorite)
             }
+            .toolbarOverflow(.keepVisible)
         }
         .refreshable { await load() }
         .task(id: board) { await load() }
