@@ -1,19 +1,17 @@
 # iPhone Duo and iOS 27
 
-Status of Tågradar's readiness for iOS 27 and the foldable iPhone Duo, announced 2026-09-09 and shipping 2026-10-23.
+Tågradar on iOS 27 and the foldable iPhone Duo, announced 2026-09-09 and shipping 2026-10-23.
 
-## Toolchain status
+## Toolchain
 
-The work splits cleanly in two, because the two targets need different toolchains and only one of them exists today.
-
-| Target | Needs | Available as of 2026-09-12 |
+| Target | Needs | Status |
 | --- | --- | --- |
-| iOS 27.0 | Xcode 27 (27A266a, RC) | Yes — released 2026-09-09 |
-| iPhone Duo | Xcode 27.1 + iOS 27.1 SDK + Duo simulator | No — not yet released |
+| iOS 27.0 | Xcode 27 (27A266a) | Released 2026-09-14 |
+| iPhone Duo | Xcode 27.1 (27A9275) + iOS 27.1 simulator runtime | Released 2026-10-15 |
 
-Xcode 27 requires macOS 26.4 or later on Apple silicon.
+The app builds with Xcode 27.1 against the iOS 27.1 SDK and still deploys to iOS 26.5; every Duo API sits behind `#available(iOS 27.1, *)`. The iOS 27.1 simulator runtime only runs the iPhone Duo (other devices stay on iOS 27.0), and needs Xcode 27.1's system components (`sudo xcodebuild -runFirstLaunch`) before any simulator will boot.
 
-The iPhone Duo SDK, the `ReservedRegion` APIs and the Duo simulator all arrive with Xcode 27.1, expected late September 2026. Until then no Duo-specific code can be compiled or tested, and there is no hardware outside Apple. Everything in "Blocked on Xcode 27.1" below is deliberately not implemented yet.
+DeviceHub, which replaced Simulator.app in Xcode 27, is the only way to change the Duo's pose: its bottom bar has rotate, closed, partially open (book) and fully open. `simctl` has no command for it. `simctl io <device> enumerate` lists both framebuffers (outer 1398 × 2034, inner 2007 × 2853), and `simctl io screenshot --display=<port UUID>` captures either.
 
 ## Audit result
 
@@ -55,19 +53,27 @@ Selecting in the regular layout does not push onto the card's trail (there is no
 
 The iPad redesign that followed removed the tabs altogether: `RootView` no longer branches on size class, `MapScreen` is the single root and swaps its own compact and regular layouts. `MapState` stays where it is, because the views inside those layouts are still rebuilt on the flip.
 
-## Blocked on Xcode 27.1
+## iPhone Duo support (iOS 27.1)
 
-Not implemented, because the SDK that defines them does not exist yet:
+Checked in the iPhone Duo simulator in every pose DeviceHub offers: closed, partially open, fully open, and fully open rotated to portrait.
 
-- `ReservedRegion` (SwiftUI) / `UIViewReservedRegion` (UIKit) — lets custom UI claim maximum space without colliding with system UI. Relevant to the map overlays and `MapControlsCluster`.
-- Building against the iOS 27.1 SDK changes behaviour on the inner display: content reaches the screen edge, and standard navigation and toolbar buttons lay out vertically rather than horizontally.
-- Concentricity (`ConcentricRectangle`, `UICornerConfiguration`) is iOS 26 and already available, but is best tuned against the real corner radii of the Duo's two displays.
-- Verify all four poses in the Duo simulator in DeviceHub, which has on-screen open, close, rotate and fold controls.
-- Verify the widgets and Live Activity on the cover display.
+- **Outer display (closed).** Compact layout: the map with the card at the bottom. The status bar runs down the right-hand side next to the outer camera, and the map controls and the card respect it. The card's content keeps the system sheet's asymmetric margin on the status-bar side.
+- **Inner display, landscape (open or partially open).** Regular layout with the sidebar, the map and the inspector side by side. The sidebar rule (`width > height` → `.all`) does not move between partially and fully open, because folding does not change the window's shape; only rotating does, the same as on iPad.
+- **Inner display, portrait.** Regular layout with the sidebar tucked away behind its button, as on an iPad in portrait.
+- **Reserved regions.** The status pill and the map controls float over a full-bleed map, so the safe area alone does not keep them clear. `ReservedRegionAvoidance` (`Tagradar/Views/Map/ReservedRegionAvoidance.swift`) reads the active `.occlusion` and `.division` regions on iOS 27.1 and steps an overlay out of any it overlaps, by the shortest move that keeps it on screen. Partially open in landscape, the inner camera sits at the top of the fold with a 124 × 84 pt margin, right where the status pill is; the pill steps to the right of it. No `.division` region was reported in any pose in the simulator, only `.occlusion` ones (each camera with its margin).
+- **Reading reserved regions.** They are reported in the querying view's own coordinate space, which `.offset` moves too: measuring the regions on the view you are offsetting moves the region with it and never settles. The modifier reads them from an unshifted probe behind the overlay.
+- **Vertical toolbars.** Where the bars run down the side, items overflow from the bottom up. Follow and Save (train detail) and Save (station board) have a high `visibilityPriority`, Share, Directions and Show on map a low one (iOS 27).
+- **App Store screenshots.** Both displays are part of the screenshot set; see `docs/app-store.md`.
+
+Not done yet:
+
+- Concentricity: tune the custom rounded shapes against the Duo's display corners (`ConcentricRectangle`).
+- Widgets and the Live Activity on the outer display.
+- Decide whether `ArrangementView` would beat `NavigationSplitView` + `.inspector` for any screen. Nothing so far suggests it would.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on the `macos-26` runner image and does not pin an Xcode version, so it builds with whatever Xcode is default on the image. When GitHub flips that default to Xcode 27 the SDK changes silently. Pinning the Xcode version explicitly would make that transition deliberate rather than incidental.
+Every Xcode job in `.github/workflows/ci.yml` runs on the `xcode-27` image with `DEVELOPER_DIR` pinned to Xcode 27.1, because the image still defaults to 27.0. Verify downloads the iOS 27.1 simulator runtime, which the image does not install. CodeQL's Swift analysis is off until CodeQL supports Xcode 27's Swift 6.4: it needs Xcode 26, which cannot compile iOS 27.1 APIs.
 
 ## Sources
 
