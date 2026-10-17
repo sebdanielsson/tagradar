@@ -158,9 +158,18 @@ private struct StatusLine: View {
             Label("Arrived \(Format.clock(train.bestArrival))", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
         case .enRoute:
             if let next = train.nextStopSignature {
-                HStack(spacing: 4) {
-                    Text("Next \(names.shortName(next))").lineLimit(1)
-                    TimePair(planned: train.nextStopPlanned, expected: train.nextStopExpected, font: .caption)
+                // Both times when they fit; otherwise only the one the train will actually keep, so
+                // the stop name is not squeezed to a letter or two on a narrow widget.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 4) {
+                        Text("Next \(names.shortName(next))")
+                        TimePair(planned: train.nextStopPlanned, expected: train.nextStopExpected, font: .caption)
+                    }
+                    HStack(spacing: 4) {
+                        Text("Next \(names.shortName(next))").lineLimit(1)
+                        TimePair(planned: train.nextStopExpected ?? train.nextStopPlanned, expected: nil, font: .caption)
+                            .fixedSize()
+                    }
                 }
             } else {
                 DelayBadge(delay: train.delay, compact: true)
@@ -188,22 +197,26 @@ struct SmallTrainView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
             Spacer(minLength: 0)
-            TimePair(
-                planned: train.scheduledDeparture,
-                expected: train.expectedDeparture,
-                canceled: train.isCanceled,
-                font: .title2.weight(.semibold)
-            )
-            HStack {
-                StatusLine(train: train, names: names)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            // The delay sits beside the departure time rather than at the end of the next-stop line:
+            // that line already holds a stop name and its planned and expected times, and with the
+            // badge too it truncated to "Next… … 1…" on narrow small widgets (an iPhone Duo's outer
+            // display, smaller iPhones).
+            HStack(alignment: .firstTextBaseline) {
+                TimePair(
+                    planned: train.scheduledDeparture,
+                    expected: train.expectedDeparture,
+                    canceled: train.isCanceled,
+                    font: .title2.weight(.semibold)
+                )
                 Spacer(minLength: 0)
                 if train.status == .enRoute || train.status == .scheduled, let delay = train.delay, abs(delay) >= 60 {
                     DelayBadge(delay: delay, compact: true)
                 }
             }
+            StatusLine(train: train, names: names)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 }
