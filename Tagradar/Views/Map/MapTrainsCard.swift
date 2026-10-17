@@ -189,7 +189,7 @@ struct MapTrainsCard: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.fill.quaternary, in: .rect(cornerRadius: 16))
+            .background(.fill.quaternary, in: .rect(corners: .concentric(minimum: 16), isUniform: true))
         } else {
             if !upcomingFavorites.isEmpty {
                 savedRows(upcomingFavorites)
@@ -339,6 +339,6 @@ struct MapTrainsCard: View {
                 }
             }
         }
-        .background(.fill.quaternary, in: .rect(cornerRadius: 16))
+        .background(.fill.quaternary, in: .rect(corners: .concentric(minimum: 16), isUniform: true))
     }
 }

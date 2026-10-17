@@ -43,7 +43,7 @@ struct MapControlsCluster: View {
                 }
                 .accessibilityLabel(Text("My location"))
             }
-            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 14))
+            .glassEffect(.regular.interactive(), in: .rect(corners: .concentric(minimum: 14), isUniform: true))
         }
         .onChange(of: location.status) { _, _ in
             if location.pendingCenter, location.isAuthorized {

@@ -235,7 +235,7 @@ struct MapSheet: View {
                             }
                         }
                     }
-                    .background(.fill.quaternary, in: .rect(cornerRadius: 16))
+                    .background(.fill.quaternary, in: .rect(corners: .concentric(minimum: 16), isUniform: true))
                 }
             }
         }
@@ -271,7 +271,7 @@ struct MapSheet: View {
                         }
                     }
                 }
-                .background(.fill.quaternary, in: .rect(cornerRadius: 16))
+                .background(.fill.quaternary, in: .rect(corners: .concentric(minimum: 16), isUniform: true))
             }
         } else if !looksLikeTrainNumber {
             Text("No station matches \(query).")
