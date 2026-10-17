@@ -47,8 +47,13 @@ fi
 
 APP=$(find "$DERIVED/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name "Tagradar.app" | head -1)
 xcrun simctl boot "$UDID" 2>/dev/null || true
-# Xcode 27 replaced Simulator.app with DeviceHub.app.
-open -a Simulator --args -CurrentDeviceUDID "$UDID" >/dev/null 2>&1 \
+# Xcode 27 replaced Simulator.app with DeviceHub.app, which shows a given device through its devices://
+# URL scheme (it ignores -CurrentDeviceUDID). Opening the URL launches DeviceHub if it is not running.
+# The URL comes first: with an older Xcode installed alongside, its Simulator.app would otherwise open
+# instead, without DeviceHub's pose controls. Where nothing handles the URL, `open` fails and the
+# older Simulator.app is tried.
+open "devices://device/open?id=$UDID" >/dev/null 2>&1 \
+  || open -a Simulator --args -CurrentDeviceUDID "$UDID" >/dev/null 2>&1 \
   || open -a "${DEVELOPER_DIR:-$(xcode-select -p)}/../Applications/DeviceHub.app" >/dev/null 2>&1 || true
 xcrun simctl bootstatus "$UDID" -b >/dev/null
 xcrun simctl install "$UDID" "$APP"

@@ -157,11 +157,9 @@ struct MapScreen: View {
         )
     }
 
-    /// Space above the status pill and the buttons beside it. Under a status bar a few points are
-    /// enough. Without one along the top the row would sit 4 pt from the screen's edge, tucked into
-    /// its rounded corner, so it gets the same margin as from the leading edge instead.
+    /// See `MapLayout.topChromeTopPadding`.
     private var topChromeTopPadding: CGFloat {
-        windowTopInset > 0 ? 4 : 16
+        MapLayout.topChromeTopPadding(windowTopInset: windowTopInset)
     }
 
     /// Records where the chrome along the top of the map ends; see `topChromeBottom`.
@@ -177,17 +175,15 @@ struct MapScreen: View {
         }
     }
 
-    /// Bottom padding that keeps the controls just above the card, in the bottom-trailing corner.
-    /// Measured from where the card's top actually is rather than worked out from the detent, because
-    /// what a detent comes to depends on the screen: on an iPhone Duo's outer display in landscape the
-    /// middle one is no taller than the search bar, and a fraction of the screen put the controls
-    /// halfway up the map.
+    /// See `MapLayout.controlsBottomPadding`.
     private func controlsBottomPadding(container: CGRect) -> CGFloat {
-        if mapState.sheetDetent == .large {
-            return container.height + 200 // pushed off-screen
-        }
-        guard let sheetTop else { return Self.collapsedSheetHeight + 16 }
-        return max(16, container.maxY - sheetTop + 16)
+        MapLayout.controlsBottomPadding(
+            containerHeight: container.height,
+            containerMaxY: container.maxY,
+            cardTop: sheetTop,
+            cardIsFull: mapState.sheetDetent == .large,
+            collapsedCardHeight: Self.collapsedSheetHeight
+        )
     }
 
     /// What covers the iPhone map: the status pill on top, the card at its current detent below,
@@ -264,7 +260,7 @@ struct MapScreen: View {
                 onSelectTrain: select,
                 onSelectStation: { focus(on: $0) }
             )
-            .navigationSplitViewColumnWidth(min: 320, ideal: 360, max: 440)
+            .navigationSplitViewColumnWidth(min: 320, ideal: MapLayout.sidebarWidth, max: 440)
         } detail: {
             map(indicatorInsets: EdgeInsets(top: topChromeBottom, leading: 0, bottom: 0, trailing: 0))
                 .ignoresSafeArea(edges: .top)
@@ -279,7 +275,7 @@ struct MapScreen: View {
         // is its own column with its own bar.
         .inspector(isPresented: inspectorBinding) {
             inspectorDetail
-                .inspectorColumnWidth(min: 340, ideal: 400, max: 520)
+                .inspectorColumnWidth(min: 340, ideal: MapLayout.inspectorWidth, max: 520)
         }
         // Binding `columnVisibility` at all opts out of the automatic behaviour: the split view
         // resolves `.automatic` once and writes the concrete value back, after which a rotation
@@ -292,18 +288,9 @@ struct MapScreen: View {
         .onChange(of: inspectorBinding.wrappedValue) { _, _ in updateColumnVisibility() }
     }
 
-    /// Shows the sidebar when the window is landscape and has room for it beside the map, and for
-    /// the inspector too while something is selected. Portrait never does, the way Mail does it.
-    /// The inspector check matters on an iPhone Duo's inner display in landscape: about 950 pt
-    /// wide, so the sidebar and the inspector together left the map a sliver about 100 pt wide.
-    /// There the sidebar steps aside while a train or station is open and comes back when it closes.
-    /// A 13-inch or 11-inch iPad in landscape is wide enough for all three.
+    /// Applies `MapLayout.showsSidebar` to the split view.
     private func updateColumnVisibility() {
-        let sidebar: CGFloat = 360
-        let inspector: CGFloat = inspectorBinding.wrappedValue ? 400 : 0
-        let minimumMap: CGFloat = 360
-        let showsSidebar = windowSize.width > windowSize.height
-            && windowSize.width >= sidebar + inspector + minimumMap
+        let showsSidebar = MapLayout.showsSidebar(windowSize: windowSize, inspectorOpen: inspectorBinding.wrappedValue)
         let visibility: NavigationSplitViewVisibility = showsSidebar ? .all : .detailOnly
         guard visibility != columnVisibility else { return }
         withAnimation {

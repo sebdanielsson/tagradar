@@ -232,6 +232,16 @@
         }
       }
     },
+    "Arrives %@": {
+      "localizations": {
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ankommer %@"
+          }
+        }
+      }
+    },
     "Arrives %@.": {
       "localizations": {
         "sv": {
