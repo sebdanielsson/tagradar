@@ -47,3 +47,7 @@ Scripts/rail-network/contracted_graph.pkl
 Scripts/rail-network/RailNetwork.json
 Scripts/rail-network/.venv/
 __pycache__/
+
+# Ruby (Gemfile)
+vendor/bundle/
+.bundle/

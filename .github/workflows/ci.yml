@@ -44,9 +44,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
-      # The image installs no iOS 27.1 simulator runtime, and the iPhone Duo device type only exists on it.
-      # Downloads while the checks below run.
-      - name: Download iOS 27.1 simulator runtime
+      # The image installs no simulator runtime for the pinned Xcode (DEVELOPER_DIR above), and the iPhone
+      # Duo device type only exists on the iOS 27.1 runtime. Downloads while the checks below run.
+      - name: Download iOS simulator runtime
         id: ios-runtime
         background: true
         run: xcodebuild -downloadPlatform iOS
@@ -74,7 +74,7 @@ jobs:
           printf 'TRV_API_KEY =\nDEVELOPMENT_TEAM =\n' > Config/Secrets.xcconfig
           xcodegen generate --quiet
 
-      - name: iOS 27.1 simulator runtime (result)
+      - name: iOS simulator runtime (result)
         wait: [ios-runtime]
 
       # The destination is resolved at run time: naming the simulator fails at random on runners
@@ -278,6 +278,12 @@ jobs:
     concurrency:
       group: appstore-submit
       cancel-in-progress: false
+    env:
+      # fastlane comes from Gemfile.lock rather than the image, which lags behind (deliver learned
+      # the iPhone Duo's screenshot sizes in 2.241.1; the image ships 2.241.0). Installed into the
+      # checkout's vendor/bundle, and frozen so the job uses exactly what is locked.
+      BUNDLE_PATH: vendor/bundle
+      BUNDLE_FROZEN: "true"
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -357,12 +363,10 @@ jobs:
           BODY: ${{ needs.release-please.outputs.body }}
         run: Scripts/ci/release-notes.sh
 
-      # deliver tells device families apart by pixel size, and learned the iPhone Duo's in fastlane
-      # 2.241.1. The xcode-27 image ships 2.241.0, which has no display type for those screenshots.
-      - name: Install fastlane 2.241.1 or later
+      - name: Install fastlane
         run: |
-          gem install fastlane --version '>= 2.241.1' --no-document
-          fastlane --version
+          bundle install
+          bundle exec fastlane --version
 
       - name: Upload to App Store Connect and submit for review
         env:
@@ -373,7 +377,7 @@ jobs:
           FASTLANE_SKIP_UPDATE_CHECK: "1"
           FASTLANE_HIDE_CHANGELOG: "1"
           VERSION: ${{ needs.release-please.outputs.version }}
-        run: fastlane release ipa:"$RUNNER_TEMP/export/Tagradar.ipa" version:"$VERSION"
+        run: bundle exec fastlane release ipa:"$RUNNER_TEMP/export/Tagradar.ipa" version:"$VERSION"
 
       - uses: actions/upload-artifact@v7.0.2
         with:

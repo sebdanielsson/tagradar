@@ -154,7 +154,7 @@ LOCALES=sv Scripts/screenshots.sh "iPhone 17 Pro Max"
 DUO_DISPLAYS=inner Scripts/screenshots.sh "iPhone Duo"
 ```
 
-Because the data is live, the script picks a train that is actually moving and pins two of them in Saved, so no screen is empty. Rerun it whenever the UI changes; the images are committed and uploaded with every release. deliver needs fastlane 2.241.1 or later to recognise the Duo sizes; the App Store job installs it, because the runner image ships 2.241.0.
+Because the data is live, the script picks a train that is actually moving and pins two of them in Saved, so no screen is empty. Rerun it whenever the UI changes; the images are committed and uploaded with every release. deliver needs fastlane 2.241.1 or later to recognise the Duo sizes; the App Store job installs the version locked in `Gemfile.lock` (see `docs/release.md`), because the runner image ships 2.241.0.
 
 ## 7. App icon
 
