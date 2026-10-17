@@ -58,7 +58,8 @@ enum MapLayout {
     /// How far to move an overlay of `size`, whose top-leading corner sits at `origin` in screen
     /// coordinates, so it overlaps none of `regions` (in its own coordinate space, as
     /// `GeometryProxy.reservedRegions` reports them). Each region it overlaps is left by the shortest
-    /// of the four ways out that keeps the overlay on screen and clear of every other region: the
+    /// of the four ways out that keeps the overlay below the top and right of the leading edge of the
+    /// screen, and clear of every other region: the
     /// regions sit against the top and leading edges, so the shortest move is often the one that
     /// would slide the overlay off the screen, and on the inner display one region's way out can be
     /// another's inside. A region with no such way out is left alone.

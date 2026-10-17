@@ -150,6 +150,20 @@ private struct StatusLine: View {
     let train: TrainSnapshot
     let names: StationNames
 
+    /// The next stop's time on its own: the expected one in its delay colour, or the planned one
+    /// when there is no estimate.
+    private var nextStopTime: some View {
+        let planned = train.nextStopPlanned
+        let time = train.nextStopExpected ?? planned
+        let delay = train.nextStopExpected.map { expected in expected.timeIntervalSince(planned ?? expected) }
+        let severity = DelaySeverity.of(delay: delay, canceled: false)
+        return Text(Format.clock(time))
+            .font(.caption)
+            .monospacedDigit()
+            .foregroundStyle(severity == .onTime || severity == .unknown ? Color.primary : severity.color)
+            .fixedSize()
+    }
+
     var body: some View {
         switch train.status {
         case .canceled:
@@ -167,12 +181,12 @@ private struct StatusLine: View {
                     }
                     HStack(spacing: 4) {
                         Text("Next \(names.shortName(next))").lineLimit(1)
-                        TimePair(planned: train.nextStopExpected ?? train.nextStopPlanned, expected: nil, font: .caption)
-                            .fixedSize()
+                        nextStopTime
                     }
                 }
-            } else {
-                DelayBadge(delay: train.delay, compact: true)
+            } else if let arrival = train.bestArrival {
+                // Not the delay badge: the row above already carries it.
+                Label("Arrives \(Format.clock(arrival))", systemImage: "flag.checkered")
             }
         default:
             HStack(spacing: 4) {
@@ -189,6 +203,15 @@ struct SmallTrainView: View {
     let train: TrainSnapshot
     let names: StationNames
 
+    private var departureTimes: some View {
+        TimePair(
+            planned: train.scheduledDeparture,
+            expected: train.expectedDeparture,
+            canceled: train.isCanceled,
+            font: .title2.weight(.semibold)
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             TrainTitle(train: train)
@@ -200,18 +223,17 @@ struct SmallTrainView: View {
             // The delay sits beside the departure time rather than at the end of the next-stop line:
             // that line already holds a stop name and its planned and expected times, and with the
             // badge too it truncated to "Next… … 1…" on narrow small widgets (an iPhone Duo's outer
-            // display, smaller iPhones).
-            HStack(alignment: .firstTextBaseline) {
-                TimePair(
-                    planned: train.scheduledDeparture,
-                    expected: train.expectedDeparture,
-                    canceled: train.isCanceled,
-                    font: .title2.weight(.semibold)
-                )
-                Spacer(minLength: 0)
-                if train.status == .enRoute || train.status == .scheduled, let delay = train.delay, abs(delay) >= 60 {
-                    DelayBadge(delay: delay, compact: true)
+            // display, smaller iPhones). When the times and the badge do not fit side by side the
+            // badge goes: the expected time beside the struck-through one shows the delay already.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline) {
+                    departureTimes
+                    Spacer(minLength: 0)
+                    if train.status == .enRoute || train.status == .scheduled, let delay = train.delay, abs(delay) >= 60 {
+                        DelayBadge(delay: delay, compact: true)
+                    }
                 }
+                departureTimes
             }
             StatusLine(train: train, names: names)
                 .font(.caption2)

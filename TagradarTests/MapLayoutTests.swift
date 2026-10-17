@@ -128,10 +128,10 @@ struct MapLayoutTests {
 
     @Test("The shortest way out is skipped when it would slide the overlay off the leading edge")
     func neverOffTheLeadingEdge() {
-        let region = CGRect(x: 10, y: -50, width: 200, height: 200)
-        let shift = MapLayout.reservedRegionShift(size: pill, origin: CGPoint(x: 0, y: 300), regions: [region])
-        #expect(shift.width >= 0)
-        #expect(shift != .zero)
+        // Left by 17 is shortest but would put the pill at x = -12; up by 126 is the next best.
+        let region = CGRect(x: 100, y: -100, width: 300, height: 300)
+        let shift = MapLayout.reservedRegionShift(size: pill, origin: CGPoint(x: 5, y: 300), regions: [region])
+        #expect(shift == CGSize(width: 0, height: -126))
     }
 
     @Test("A way out that runs into another region is not taken")

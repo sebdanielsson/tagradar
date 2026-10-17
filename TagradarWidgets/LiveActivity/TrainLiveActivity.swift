@@ -44,7 +44,7 @@ struct TrainLiveActivity: Widget {
                         .labelStyle(.titleAndIcon)
                     Text(context.attributes.ident)
                     Text(context.attributes.ident)
-                        .minimumScaleFactor(0.5)
+                        .minimumScaleFactor(0.75)
                 }
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
@@ -142,7 +142,7 @@ private struct CompactStatus: View {
                 .font(.caption.weight(.semibold))
                 .monospacedDigit()
                 .lineLimit(1)
-                .minimumScaleFactor(0.5)
+                .minimumScaleFactor(0.75)
                 .foregroundStyle(color)
         }
     }

@@ -119,7 +119,7 @@ struct QuickStationsRow: View {
                 }
             }
         }
-        .background(.fill.quaternary, in: .rect(corners: .concentric(minimum: 16), isUniform: true))
+        .background(.fill.quaternary, in: .rect(cornerRadius: 16))
     }
 
     /// The card's compact take: a row of circles to swipe through.

@@ -180,7 +180,7 @@ struct NearbyDeparturesCard: View {
                 .foregroundStyle(.secondary)
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.fill.quaternary, in: .rect(corners: .concentric(minimum: 16), isUniform: true))
+                .background(.fill.quaternary, in: .rect(cornerRadius: 16))
         } else if rows.isEmpty {
             Text(
                 board == .departures
@@ -191,7 +191,7 @@ struct NearbyDeparturesCard: View {
             .foregroundStyle(.secondary)
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.fill.quaternary, in: .rect(corners: .concentric(minimum: 16), isUniform: true))
+            .background(.fill.quaternary, in: .rect(cornerRadius: 16))
         } else {
             let visibleRows = isExpanded ? rows : Array(rows.prefix(Self.previewCount))
             VStack(spacing: 0) {
@@ -210,7 +210,7 @@ struct NearbyDeparturesCard: View {
                     }
                 }
             }
-            .background(.fill.quaternary, in: .rect(corners: .concentric(minimum: 16), isUniform: true))
+            .background(.fill.quaternary, in: .rect(cornerRadius: 16))
             if rows.count > Self.previewCount {
                 Button {
                     withAnimation { isExpanded.toggle() }
@@ -243,7 +243,7 @@ struct NearbyDeparturesCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity)
-        .background(.fill.quaternary, in: .rect(corners: .concentric(minimum: 16), isUniform: true))
+        .background(.fill.quaternary, in: .rect(cornerRadius: 16))
     }
 
     // MARK: Actions
@@ -407,7 +407,7 @@ private struct SkeletonRows: View {
         }
         .redacted(reason: .placeholder)
         .opacity(isPulsing ? 0.4 : 1)
-        .background(.fill.quaternary, in: .rect(corners: .concentric(minimum: 16), isUniform: true))
+        .background(.fill.quaternary, in: .rect(cornerRadius: 16))
         // `redacted` blurs the placeholders on screen but leaves them in the accessibility tree,
         // so without this VoiceOver reads out "00:00, Placeholder station" as though it were a
         // departure. One "Loading" in place of the three fake rows says what is actually going on.
