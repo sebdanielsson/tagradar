@@ -2,6 +2,19 @@
 
 Releases are cut by [release-please](https://github.com/googleapis/release-please) from [Conventional Commits](https://www.conventionalcommits.org/) on `main`; new sections are added above this one automatically. The project uses [Semantic Versioning](https://semver.org/).
 
+## [1.3.0](https://github.com/sebdanielsson/tagradar/compare/v1.2.0...v1.3.0) (2026-10-17)
+
+
+### Features
+
+* support iPhone Duo (Xcode 27.1 / iOS 27.1 SDK) ([#76](https://github.com/sebdanielsson/tagradar/issues/76)) ([847b654](https://github.com/sebdanielsson/tagradar/commit/847b654c0aa5a98112dc6fc71bd75e75aede52ae))
+
+
+### Bug Fixes
+
+* iPhone Duo follow-ups (Live Activity, widgets, concentric corners) ([#79](https://github.com/sebdanielsson/tagradar/issues/79)) ([13b810a](https://github.com/sebdanielsson/tagradar/commit/13b810af60fc7d9616c63398b3e71571eb09a152))
+* keep the off-screen train pill in a fixed corner of the map ([#80](https://github.com/sebdanielsson/tagradar/issues/80)) ([368b5a8](https://github.com/sebdanielsson/tagradar/commit/368b5a8e220317f2649422a3aed5f72fb0b76c69))
+
 ## [1.2.0](https://github.com/sebdanielsson/tagradar/compare/v1.1.0...v1.2.0) (2026-10-11)
 
 
