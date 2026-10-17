@@ -29,34 +29,15 @@ private struct ReservedRegionAvoidance: ViewModifier {
             }
     }
 
+    /// Occlusion covers the cameras, each with a margin for interactive content around it — on the
+    /// inner display that includes the camera at the top of the fold. Division is the fold itself.
+    /// The move itself is `MapLayout.reservedRegionShift`.
     @available(iOS 27.1, *)
     private nonisolated static func shift(for proxy: GeometryProxy) -> CGSize {
-        let global = proxy.frame(in: .global)
-        var shift = CGSize.zero
-        // Occlusion covers the cameras, each with a margin for interactive content around it — on the
-        // inner display that includes the camera at the top of the fold. Division is the fold itself.
         let regions = (proxy.reservedRegions(kind: .occlusion) + proxy.reservedRegions(kind: .division))
             .filter(\.isActive)
-        for region in regions {
-            let frame = CGRect(origin: .zero, size: proxy.size).offsetBy(dx: shift.width, dy: shift.height)
-            guard frame.intersects(region.frame) else { continue }
-            // The four ways out of the region, shortest first. A way out that would push the overlay
-            // past the top or leading edge of the screen is no way out: the regions sit against those
-            // edges, so the shorter move is often the one that slides it off the screen.
-            let candidates = [
-                CGSize(width: region.frame.maxX - frame.minX, height: 0),
-                CGSize(width: region.frame.minX - frame.maxX, height: 0),
-                CGSize(width: 0, height: region.frame.maxY - frame.minY),
-                CGSize(width: 0, height: region.frame.minY - frame.maxY),
-            ]
-            let move = candidates
-                .filter { global.minX + shift.width + $0.width >= 0 && global.minY + shift.height + $0.height >= 0 }
-                .min { abs($0.width) + abs($0.height) < abs($1.width) + abs($1.height) }
-            guard let move else { continue }
-            shift.width += move.width
-            shift.height += move.height
-        }
-        return shift
+            .map(\.frame)
+        return MapLayout.reservedRegionShift(size: proxy.size, origin: proxy.frame(in: .global).origin, regions: regions)
     }
 }
 
