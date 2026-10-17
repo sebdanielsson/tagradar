@@ -132,24 +132,29 @@ Almost all of this is uploaded, but the fields are listed so you can check them 
 
 ### Screenshots
 
-App Store Connect needs one set per device family the app runs on; `TARGETED_DEVICE_FAMILY` is `1,2`, so both are required. Alpha channels are not allowed and 1–10 images fit each size.
+App Store Connect needs one set per device family the app runs on; `TARGETED_DEVICE_FAMILY` is `1,2`, so iPhone and iPad are required. Alpha channels are not allowed and 1–10 images fit each size.
 
-| Family | Simulator | Pixels (portrait) | In the repo |
+| Family | Simulator | Pixels | In the repo |
 |---|---|---|---|
-| iPhone 6.9" | iPhone 17 Pro Max | 1320 × 2868 | 5 per locale |
-| iPad 13" | iPad Pro 13-inch (M5) | 2064 × 2752 | 4 per locale |
+| iPhone 6.9" | iPhone 17 Pro Max (iOS 27.0) | 1320 × 2868 | 5 per locale |
+| iPad 13" | iPad Pro 13-inch (M5) (iOS 27.0) | 2064 × 2752 | 4 per locale |
+| iPhone Duo, outer display | iPhone Duo (iOS 27.1) | 1398 × 2034 | 3 per locale |
+| iPhone Duo, inner display | iPhone Duo (iOS 27.1), landscape | 2853 × 2007 | 3 per locale |
 
-Smaller iPhone and iPad sizes are scaled by Apple from these two, so nothing else has to be produced.
+Smaller iPhone and iPad sizes are scaled by Apple from the first two, so nothing else has to be produced. The iPhone Duo set is optional until April 2027, when Apple starts requiring it for apps built with the iOS 27.1 SDK or later; uploading it earns the product page the "optimized for iPhone Duo" badge. Both Duo displays share one set of up to ten images. The iOS 27.1 simulator runtime only runs the iPhone Duo, so the other two families are taken on iOS 27.0.
 
-`Scripts/screenshots.sh` regenerates the whole set — both devices, both locales — and strips the alpha channel the simulator always writes (`Scripts/strip-alpha.swift`). It needs `TRV_API_KEY` in `.env.local` and [`idb`](https://fbidb.io): the iPhone shots drag the bottom card to the height that frames each subject, and the iPad shots open the sidebar.
+`Scripts/screenshots.sh` regenerates the whole set — every device, both locales — and strips the alpha channel the simulator always writes (`Scripts/strip-alpha.swift`). It needs `TRV_API_KEY` in `.env.local` and [`idb`](https://fbidb.io): the iPhone shots tap the bottom card's grabber to bring it to the height that frames each subject (idb's drags no longer resize a sheet on iOS 27), and the iPad shots open the sidebar.
+
+The Duo's pose can only be changed with DeviceHub's controls (there is no `simctl` command for it), so the script asks for it: closed for the outer display, then fully open in landscape for the inner one. Run from a terminal it waits for Return after each; otherwise it stops and says which pose it needs. `DUO_DISPLAYS=outer` or `inner` retakes one display and leaves the other's images alone.
 
 ```bash
 Scripts/screenshots.sh                    # everything
 TRAIN=560 Scripts/screenshots.sh          # pin the featured train instead of picking a live one
 LOCALES=sv Scripts/screenshots.sh "iPhone 17 Pro Max"
+DUO_DISPLAYS=inner Scripts/screenshots.sh "iPhone Duo"
 ```
 
-Because the data is live, the script picks a train that is actually moving and pins two of them in Saved, so no screen is empty. Rerun it whenever the UI changes; the images are committed and uploaded with every release.
+Because the data is live, the script picks a train that is actually moving and pins two of them in Saved, so no screen is empty. Rerun it whenever the UI changes; the images are committed and uploaded with every release. deliver needs fastlane 2.241.1 or later to recognise the Duo sizes; the App Store job installs the version locked in `Gemfile.lock` (see `docs/release.md`), because the runner image ships 2.241.0.
 
 ## 7. App icon
 

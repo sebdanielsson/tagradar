@@ -3,6 +3,8 @@
 #
 #   Scripts/simulator.sh                      # iPhone 17 Pro
 #   Scripts/simulator.sh "iPad Pro 13-inch (M5)"
+#   Scripts/simulator.sh "iPhone Duo"                 # needs the iOS 27.1 runtime
+#   RUNTIME=27.0 Scripts/simulator.sh                 # pick the runtime when a name exists on several (default: newest)
 #   Scripts/simulator.sh "iPhone 17 Pro" shot.png   # also save a screenshot after launch
 #   TRAIN=520 Scripts/simulator.sh                    # open a train's detail at launch, debug builds only
 #   STATION=Cst Scripts/simulator.sh                  # open a station's board at launch, debug builds only
@@ -28,17 +30,11 @@ fi
 
 [ -d Tagradar.xcodeproj ] || Scripts/bootstrap.sh
 
-UDID=$(xcrun simctl list devices available -j | python3 -c "
-import json,sys
-data=json.load(sys.stdin)['devices']
-want=sys.argv[1]
-for runtime,devs in data.items():
-    if 'iOS' not in runtime: continue
-    for d in devs:
-        if d['name']==want:
-            print(d['udid']); sys.exit(0)
-sys.exit(1)
-" "$DEVICE") || { echo "No simulator named '$DEVICE'. Available:"; xcrun simctl list devices available | grep -E "iPhone|iPad"; exit 1; }
+UDID=$(Scripts/simulator-udid.sh "$DEVICE") || {
+  echo "No simulator named '$DEVICE'${RUNTIME:+ on iOS $RUNTIME}. Available:"
+  xcrun simctl list devices available | grep -E "^-- iOS|iPhone|iPad"
+  exit 1
+}
 
 if [ -z "${SKIP_BUILD:-}" ]; then
 echo "▶ Building for $DEVICE ($UDID)"

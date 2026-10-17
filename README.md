@@ -22,7 +22,7 @@ Tågradar is a native iOS and iPadOS app that shows every train in Sweden live o
 ## Requirements
 
 - iOS 26.5 / iPadOS 26.5 or later
-- Xcode 27 (iOS 27 SDK) to build
+- Xcode 27.1 (iOS 27.1 SDK) to build
 - A free Trafikverket API key (see below)
 
 ## Getting an API key

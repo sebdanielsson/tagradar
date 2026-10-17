@@ -110,5 +110,8 @@ Everything derived from it (widget bundle ID, App Group, Keychain group, backgro
 ```bash
 Scripts/bootstrap.sh                 # Secrets.xcconfig + Xcode project
 Scripts/screenshots.sh               # App Store screenshots
-fastlane release ipa:… version:…     # what the appstore job runs (needs the same env vars)
+bundle install                       # fastlane at the version in Gemfile.lock
+bundle exec fastlane release ipa:… version:…   # what the appstore job runs (needs the same env vars)
 ```
+
+fastlane is pinned in `Gemfile` and resolved in `Gemfile.lock`, so Renovate opens a PR when a new version is out. The App Store job installs it from there rather than using the runner image's copy, which lags behind.

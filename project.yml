@@ -3,7 +3,7 @@ options:
   bundleIdPrefix: se.tagradar
   deploymentTarget:
     iOS: "26.5"
-  xcodeVersion: "27.0"
+  xcodeVersion: "27.1"
   createIntermediateGroups: true
   generateEmptyDirectories: true
   groupSortPosition: top

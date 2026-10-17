@@ -151,8 +151,10 @@ struct TrainDetailView: View {
                     Button("Close", systemImage: "xmark", action: onClose)
                 }
             }
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                if let journey, canFollow(journey) {
+            // Separate items rather than one group so Follow and Save can outlast the rest when the
+            // bar overflows (see `toolbarOverflow`). Adjacent items still share one glass background.
+            if let journey, canFollow(journey) {
+                ToolbarItem(placement: .topBarTrailing) {
                     let following = activities.isFollowing(journey.key.id)
                     Button(following ? "Following" : "Follow", systemImage: "dot.radiowaves.left.and.right") {
                         toggleFollow(journey)
@@ -161,25 +163,35 @@ struct TrainDetailView: View {
                     .symbolEffect(.variableColor.iterative, isActive: following)
                     .sensoryFeedback(.selection, trigger: following)
                 }
-                if effectiveKey != nil {
+                .toolbarOverflow(.keepVisible)
+            }
+            if effectiveKey != nil {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(favorite == nil ? "Save" : "Saved", systemImage: favorite == nil ? "star" : "star.fill") {
                         toggleFavorite()
                     }
                     .tint(favorite == nil ? nil : .yellow)
                     .sensoryFeedback(.success, trigger: favorite != nil)
                 }
-                if liveTrain != nil, onClose == nil, sizeClass == .regular {
+                .toolbarOverflow(.keepVisible)
+            }
+            if liveTrain != nil, onClose == nil, sizeClass == .regular {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Show on map", systemImage: "map") {
                         if let effectiveKey {
                             navigation.showOnMap(effectiveKey)
                         }
                     }
                 }
-                if let journey {
+                .toolbarOverflow(.overflowFirst)
+            }
+            if let journey {
+                ToolbarItem(placement: .topBarTrailing) {
                     ShareLink(item: shareText(for: journey)) {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
+                .toolbarOverflow(.overflowFirst)
             }
         }
         .refreshable { await load() }
