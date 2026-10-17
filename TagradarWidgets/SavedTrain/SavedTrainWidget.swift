@@ -206,11 +206,22 @@ struct SmallTrainView: View {
     let train: TrainSnapshot
     let names: StationNames
 
-    @ViewBuilder
-    private var delayBadge: some View {
-        if train.status == .enRoute || train.status == .scheduled, let delay = train.delay, abs(delay) >= 60 {
-            DelayBadge(delay: delay, compact: true)
+    /// The current delay worth a badge, if any.
+    private var badgeDelay: TimeInterval? {
+        guard train.status == .enRoute || train.status == .scheduled, let delay = train.delay, abs(delay) >= 60 else {
+            return nil
         }
+        return delay
+    }
+
+    /// The departure time the train will actually keep, on its own.
+    private var expectedTime: some View {
+        TimePair(
+            planned: train.expectedDeparture ?? train.scheduledDeparture,
+            expected: nil,
+            canceled: train.isCanceled,
+            font: .title2.weight(.semibold)
+        )
     }
 
     private var departureTimes: some View {
@@ -236,23 +247,26 @@ struct SmallTrainView: View {
             // display, smaller iPhones). A delayed departure shows two times, which rarely fit beside
             // the badge in a small widget, so the struck-through planned time goes first: the badge
             // carries the current delay, which for a train under way can differ from how late it left.
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .firstTextBaseline) {
+            // Whatever does not fit, the expected time alone is the last resort, never a truncated one.
+            if let badgeDelay {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline) {
+                        departureTimes
+                        Spacer(minLength: 0)
+                        DelayBadge(delay: badgeDelay, compact: true)
+                    }
+                    HStack(alignment: .firstTextBaseline) {
+                        expectedTime
+                        Spacer(minLength: 0)
+                        DelayBadge(delay: badgeDelay, compact: true)
+                    }
+                    expectedTime
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
                     departureTimes
-                    Spacer(minLength: 0)
-                    delayBadge
+                    expectedTime
                 }
-                HStack(alignment: .firstTextBaseline) {
-                    TimePair(
-                        planned: train.expectedDeparture ?? train.scheduledDeparture,
-                        expected: nil,
-                        canceled: train.isCanceled,
-                        font: .title2.weight(.semibold)
-                    )
-                    Spacer(minLength: 0)
-                    delayBadge
-                }
-                departureTimes
             }
             StatusLine(train: train, names: names)
                 .font(.caption2)
