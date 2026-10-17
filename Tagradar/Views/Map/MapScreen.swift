@@ -35,7 +35,7 @@ struct MapScreen: View {
     /// where it runs down the side (an iPhone Duo's outer display in landscape, its inner display in
     /// landscape). See `topChromeTopPadding`.
     @State private var windowTopInset: CGFloat = 0
-    /// The window's bottom safe-area inset (the home indicator); see `MapLayout.regularIndicatorBottomInset`.
+    /// The window's bottom safe-area inset (the home indicator); see `MapLayout.regularIndicatorBottomClearance`.
     @State private var windowBottomInset: CGFloat = 0
     @Namespace private var mapScope
 
@@ -146,7 +146,7 @@ struct MapScreen: View {
         }
     }
 
-    private func map(indicatorInsets: EdgeInsets?) -> some View {
+    private func map(indicatorInsets: EdgeInsets?, indicatorBottomClearance: CGFloat = 0) -> some View {
         @Bindable var mapState = mapState
         return TrainMapView(
             camera: $mapState.camera,
@@ -156,6 +156,7 @@ struct MapScreen: View {
             selectedStation: mapState.selectedStation,
             onSelectStation: { focus(on: $0) },
             indicatorInsets: indicatorInsets,
+            indicatorBottomClearance: indicatorBottomClearance,
             scope: mapScope
         )
     }
@@ -265,12 +266,10 @@ struct MapScreen: View {
             )
             .navigationSplitViewColumnWidth(min: 320, ideal: MapLayout.sidebarWidth, max: 440)
         } detail: {
-            map(indicatorInsets: EdgeInsets(
-                top: topChromeBottom,
-                leading: 0,
-                bottom: MapLayout.regularIndicatorBottomInset(windowBottomInset: windowBottomInset),
-                trailing: 0
-            ))
+            map(
+                indicatorInsets: EdgeInsets(top: topChromeBottom, leading: 0, bottom: 0, trailing: 0),
+                indicatorBottomClearance: MapLayout.regularIndicatorBottomClearance(windowBottomInset: windowBottomInset)
+            )
             .ignoresSafeArea(edges: .top)
             .safeAreaInset(edge: .top, spacing: 0) { measuringTopChrome(regularTopOverlay) }
             .mapScope(mapScope)

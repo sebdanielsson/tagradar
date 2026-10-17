@@ -29,12 +29,12 @@ enum MapLayout {
     /// with the space MapKit leaves around them.
     static let mapAttributionHeight: CGFloat = 36
 
-    /// What covers the bottom of the regular layout's map: the home indicator, and above it the
-    /// Apple Maps attribution, which must stay visible. The off-screen train indicator sits in the
-    /// map's bottom-leading corner (`SelectedTrainIndicator`), right where the attribution is, so it
-    /// stays above both. The iPhone layout needs none of this: there the card covers the
-    /// attribution, and the indicator sits above the card.
-    static func regularIndicatorBottomInset(windowBottomInset: CGFloat) -> CGFloat {
+    /// How far above the bottom of the regular layout's map the off-screen train indicator sits: over
+    /// the home indicator and the Apple Maps attribution, which must stay visible and is right in the
+    /// bottom-leading corner the indicator uses (`SelectedTrainIndicator`). Only the pill moves; the
+    /// area in which the train counts as in view still runs to the bottom of the map. The iPhone
+    /// layout needs none of this: there the card covers the attribution and the pill sits above it.
+    static func regularIndicatorBottomClearance(windowBottomInset: CGFloat) -> CGFloat {
         windowBottomInset + mapAttributionHeight
     }
 

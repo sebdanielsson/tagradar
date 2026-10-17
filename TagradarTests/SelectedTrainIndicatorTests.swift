@@ -5,41 +5,42 @@ import Testing
 /// The off-screen train pill sits in a fixed corner and only its arrow follows the train (#70).
 @Suite("SelectedTrainIndicator")
 struct SelectedTrainIndicatorTests {
-    // iPhone 17 Pro Max, card at its middle height: the uncovered map above it, the controls'
-    // column taken off the trailing edge.
+    /// iPhone 17 Pro Max, card at its middle height: the uncovered map above it, the controls'
+    /// column taken off the trailing edge. The arrow then sits at (16 + 18, 420 - 18) = (34, 402).
     private let bounds = CGRect(x: 0, y: 120, width: 376, height: 300)
-    private let pill = CGSize(width: 110, height: 36)
 
-    @Test("The pill sits in the bottom-leading corner, wherever the train is", arguments: [
-        CGPoint(x: -500, y: 200), CGPoint(x: 900, y: -300), CGPoint(x: 188, y: 2000), CGPoint(x: 188, y: -2000),
-    ])
-    func fixedCorner(target: CGPoint) {
-        let layout = SelectedTrainIndicator.layout(bounds: bounds, target: target, size: pill)
-        #expect(layout.position.x == bounds.minX + SelectedTrainIndicator.leadingMargin + pill.width / 2)
-        #expect(layout.position.y == bounds.maxY - SelectedTrainIndicator.bottomMargin - pill.height / 2)
-    }
-
-    @Test("The arrow points from the pill to the train", arguments: [
-        (CGPoint(x: 71, y: -1000), 0.0), // straight up
+    @Test("The arrow points from where it sits to the train", arguments: [
+        (CGPoint(x: 34, y: -1000), 0.0), // straight up
         (CGPoint(x: 2000, y: 402), 90.0), // to the right
-        (CGPoint(x: 71, y: 2000), 180.0), // straight down
+        (CGPoint(x: 34, y: 2000), 180.0), // straight down
         (CGPoint(x: -2000, y: 402), -90.0), // to the left
+        (CGPoint(x: 434, y: 2), 45.0), // up and to the right
     ])
-    func arrowFromPill(target: CGPoint, degrees: Double) {
-        // The pill's centre is (16 + 55, 420 - 18) = (71, 402).
-        let layout = SelectedTrainIndicator.layout(bounds: bounds, target: target, size: pill)
-        #expect(abs(layout.angle.degrees - degrees) < 0.001)
+    func arrowFromCorner(target: CGPoint, degrees: Double) {
+        let angle = SelectedTrainIndicator.arrowAngle(bounds: bounds, target: target)
+        #expect(abs(angle.degrees - degrees) < 0.001)
     }
 
-    @Test("Before the pill has been measured it still lands in the corner")
-    func unmeasuredPill() {
-        let layout = SelectedTrainIndicator.layout(bounds: bounds, target: CGPoint(x: 900, y: 0), size: .zero)
-        #expect(layout.position == CGPoint(x: SelectedTrainIndicator.leadingMargin, y: bounds.maxY))
+    @Test("The arrow is aimed from the corner, not the middle of the map")
+    func notFromTheMiddle() {
+        // Straight above the middle of the map (188, 270): from the corner that is up and right.
+        let angle = SelectedTrainIndicator.arrowAngle(bounds: bounds, target: CGPoint(x: 188, y: -1000))
+        #expect(angle.degrees > 5 && angle.degrees < 15)
+    }
+
+    @Test("Clearance lifts the arrow with the pill")
+    func clearanceLiftsArrow() {
+        // Level with the lifted arrow at y = 420 - 56 - 18 = 346, the train is due right only with it.
+        let target = CGPoint(x: 2000, y: 346)
+        let lifted = SelectedTrainIndicator.arrowAngle(bounds: bounds, bottomClearance: 56, target: target)
+        let unlifted = SelectedTrainIndicator.arrowAngle(bounds: bounds, target: target)
+        #expect(abs(lifted.degrees - 90) < 0.001)
+        #expect(abs(unlifted.degrees - 90) > 1)
     }
 
     @Test("On iPad the pill clears the home indicator and the Apple Maps attribution")
-    func regularBottomInset() {
-        #expect(MapLayout.regularIndicatorBottomInset(windowBottomInset: 20) == 20 + MapLayout.mapAttributionHeight)
-        #expect(MapLayout.regularIndicatorBottomInset(windowBottomInset: 0) == MapLayout.mapAttributionHeight)
+    func regularBottomClearance() {
+        #expect(MapLayout.regularIndicatorBottomClearance(windowBottomInset: 20) == 56)
+        #expect(MapLayout.regularIndicatorBottomClearance(windowBottomInset: 0) == 36)
     }
 }

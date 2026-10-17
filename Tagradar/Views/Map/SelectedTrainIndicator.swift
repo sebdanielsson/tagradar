@@ -129,34 +129,41 @@ final class SelectedTrainTracker {
 /// whose controls are along the top.
 struct SelectedTrainIndicator: View {
     let tracker: SelectedTrainTracker
+    /// Extra space under the pill, on top of the unobscured area's own bottom edge: on iPad the
+    /// home indicator and the Apple Maps attribution (`MapLayout.regularIndicatorBottomClearance`).
+    /// Kept apart from the bounds the tracker uses, so it moves the pill without changing which
+    /// trains count as in view.
+    var bottomClearance: CGFloat = 0
     let action: () -> Void
-
-    @State private var size: CGSize = .zero
 
     /// Space between the pill and the leading edge: the same as the status pill above it.
     static let leadingMargin: CGFloat = 16
-    /// Space between the pill and the bottom of the unobscured area. On iPhone that bottom is
-    /// already the bottom of the map controls (see `MapLayout.controlsBottomPadding`), so none is
-    /// needed to line the two up; on iPad it is the bottom of the map.
-    static let bottomMargin: CGFloat = 0
+    /// The centre of the arrow badge, from the pill's bottom-leading corner: 6 pt padding plus half
+    /// the 24 pt circle across, and half the pill's height up.
+    static let arrowOffset = CGSize(width: 18, height: -18)
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottomLeading) {
             if let placement = tracker.placement {
-                let layout = Self.layout(for: placement, size: size)
+                let bounds = placement.bounds
                 Button(action: action) {
-                    label(placement, angle: layout.angle)
+                    label(placement, angle: Self.arrowAngle(bounds: bounds, bottomClearance: bottomClearance, target: placement.target))
                 }
                 .buttonStyle(.plain)
                 .glassEffect(.regular.interactive(), in: .capsule)
-                .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
-                .position(layout.position)
-                .transition(.scale(scale: 0.6).combined(with: .opacity))
+                // Never wider than the unobscured area, which on iPhone ends where the map controls
+                // begin, so at large text sizes the pill shortens its text rather than run under them.
+                .frame(maxWidth: max(0, bounds.width - 2 * Self.leadingMargin), alignment: .leading)
+                .padding(.leading, Self.leadingMargin)
+                .padding(.bottom, bottomClearance)
+                .frame(width: bounds.width, height: bounds.height, alignment: .bottomLeading)
+                .offset(x: bounds.minX, y: bounds.minY)
+                .transition(.scale(scale: 0.6, anchor: .bottomLeading).combined(with: .opacity))
                 .accessibilityLabel(Text("Show train \(placement.trainNumber)"))
                 .accessibilityValue(Text(verbatim: Self.distance(placement.distance)))
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .animation(.smooth(duration: 0.3), value: tracker.placement == nil)
     }
 
@@ -173,37 +180,32 @@ struct SelectedTrainIndicator: View {
                 Text(placement.trainNumber)
                     .font(.subheadline.weight(.semibold))
                     .monospacedDigit()
+                    .layoutPriority(1)
                 Text(verbatim: Self.distance(placement.distance))
                     .font(.subheadline)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
+            .lineLimit(1)
         }
         .padding(.leading, 6)
         .padding(.trailing, 12)
         .padding(.vertical, 6)
+        // Map chrome: grows with Dynamic Type up to a point, past which it would cover the map.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .contentShape(.capsule)
     }
 
-    private static func layout(
-        for placement: SelectedTrainTracker.Placement,
-        size: CGSize
-    ) -> (position: CGPoint, angle: Angle) {
-        layout(bounds: placement.bounds, target: placement.target, size: size)
-    }
-
-    /// The pill's centre, in the bottom-leading corner of `bounds` (the unobscured area), and which
-    /// way its arrow points: from the pill to the train at `target`, so it reads correctly from where
-    /// it sits rather than from the middle of the map. Left-to-right only; the map is not mirrored.
-    static func layout(bounds: CGRect, target: CGPoint, size: CGSize) -> (position: CGPoint, angle: Angle) {
-        let position = CGPoint(
-            x: bounds.minX + leadingMargin + size.width / 2,
-            y: bounds.maxY - bottomMargin - size.height / 2
+    /// Which way the arrow points: from where it sits, near the bottom-leading corner of `bounds`
+    /// (the unobscured area), to the train at `target`, so it reads correctly from the pill rather
+    /// than from the middle of the map. Left-to-right only; the map is not mirrored.
+    static func arrowAngle(bounds: CGRect, bottomClearance: CGFloat = 0, target: CGPoint) -> Angle {
+        let arrow = CGPoint(
+            x: bounds.minX + leadingMargin + arrowOffset.width,
+            y: bounds.maxY - bottomClearance + arrowOffset.height
         )
-        let dx = target.x - position.x
-        let dy = target.y - position.y
         // Screen y grows downwards, and the arrow glyph points up at zero rotation.
-        return (position, .radians(atan2(dx, -dy)))
+        return .radians(atan2(target.x - arrow.x, -(target.y - arrow.y)))
     }
 
     /// `850 m` or `14 km` (`500 ft` or `14 mi` where the locale uses miles). The unit is picked
