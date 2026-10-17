@@ -26,6 +26,13 @@ struct MapScreen: View {
     /// Bottom of the status pill and buttons along the top of the map, in window points — where
     /// the map, which runs up under them, stops being covered.
     @State private var topChromeBottom: CGFloat = 0
+    /// Top edge of the iPhone card in window points, as laid out rather than as the detent implies;
+    /// see `controlsBottomPadding`. `nil` until the card has appeared.
+    @State private var sheetTop: CGFloat?
+    /// The window's top safe-area inset: the status bar's height where it runs along the top, zero
+    /// where it runs down the side (an iPhone Duo's outer display in landscape, its inner display in
+    /// landscape). See `topChromeTopPadding`.
+    @State private var windowTopInset: CGFloat = 0
     @Namespace private var mapScope
 
     /// Height of the collapsed card: the search field with breathing room under the grabber.
@@ -44,6 +51,11 @@ struct MapScreen: View {
             } else {
                 compactLayout
             }
+        }
+        .background {
+            Color.clear
+                .ignoresSafeArea()
+                .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { windowTopInset = $0 }
         }
         // Keyed on the layout too: the framing depends on it, and a change mid-wait should start over.
         .task(id: [scenePhase == .active, isRegular]) { await centerOnUserAtLaunch() }
@@ -143,6 +155,13 @@ struct MapScreen: View {
         )
     }
 
+    /// Space above the status pill and the buttons beside it. Under a status bar a few points are
+    /// enough. Without one along the top the row would sit 4 pt from the screen's edge, tucked into
+    /// its rounded corner, so it gets the same margin as from the leading edge instead.
+    private var topChromeTopPadding: CGFloat {
+        windowTopInset > 0 ? 4 : 16
+    }
+
     /// Records where the chrome along the top of the map ends; see `topChromeBottom`.
     private func measuringTopChrome(_ chrome: some View) -> some View {
         chrome.onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { topChromeBottom = $0 }
@@ -152,28 +171,32 @@ struct MapScreen: View {
 
     private var compactLayout: some View {
         GeometryReader { geometry in
-            compactMap(containerHeight: geometry.size.height)
+            compactMap(container: geometry.frame(in: .global))
         }
     }
 
-    /// Bottom padding that keeps the controls just above the card at the current detent.
-    private func controlsBottomPadding(containerHeight: CGFloat) -> CGFloat {
-        switch mapState.sheetDetent {
-        case .medium: containerHeight * 0.55 + 40 // medium ≈ 55 % of the safe-area height
-        case .large: containerHeight + 200 // pushed off-screen
-        default: Self.collapsedSheetHeight + 16
+    /// Bottom padding that keeps the controls just above the card, in the bottom-trailing corner.
+    /// Measured from where the card's top actually is rather than worked out from the detent, because
+    /// what a detent comes to depends on the screen: on an iPhone Duo's outer display in landscape the
+    /// middle one is no taller than the search bar, and a fraction of the screen put the controls
+    /// halfway up the map.
+    private func controlsBottomPadding(container: CGRect) -> CGFloat {
+        if mapState.sheetDetent == .large {
+            return container.height + 200 // pushed off-screen
         }
+        guard let sheetTop else { return Self.collapsedSheetHeight + 16 }
+        return max(16, container.maxY - sheetTop + 16)
     }
 
     /// What covers the iPhone map: the status pill on top, the card at its current detent below,
     /// and the controls along the trailing edge. `nil` at the large detent, where the card covers
     /// all of it.
-    private func compactIndicatorInsets(containerHeight: CGFloat) -> EdgeInsets? {
+    private func compactIndicatorInsets(container: CGRect) -> EdgeInsets? {
         guard mapState.sheetDetent != .large else { return nil }
         return EdgeInsets(
             top: topChromeBottom,
             leading: 0,
-            bottom: controlsBottomPadding(containerHeight: containerHeight),
+            bottom: controlsBottomPadding(container: container),
             trailing: Self.controlsColumnWidth
         )
     }
@@ -181,9 +204,9 @@ struct MapScreen: View {
     /// `MapControlsCluster`'s width and the padding beside it.
     private static let controlsColumnWidth: CGFloat = 44 + 12 + 8
 
-    private func compactMap(containerHeight: CGFloat) -> some View {
+    private func compactMap(container: CGRect) -> some View {
         @Bindable var mapState = mapState
-        return map(indicatorInsets: compactIndicatorInsets(containerHeight: containerHeight))
+        return map(indicatorInsets: compactIndicatorInsets(container: container))
             .ignoresSafeArea(edges: .top)
             .safeAreaInset(edge: .top, spacing: 0) {
                 measuringTopChrome(
@@ -193,7 +216,7 @@ struct MapScreen: View {
                         Spacer()
                     }
                     .padding(.horizontal)
-                    .padding(.top, 4)
+                    .padding(.top, topChromeTopPadding)
                     .padding(.bottom, 8)
                 )
             }
@@ -201,7 +224,8 @@ struct MapScreen: View {
                 MapControlsCluster(camera: $mapState.camera)
                     .avoidingReservedRegions()
                     .padding(.trailing, 12)
-                    .padding(.bottom, controlsBottomPadding(containerHeight: containerHeight))
+                    .padding(.bottom, controlsBottomPadding(container: container))
+                    .animation(.smooth(duration: 0.35), value: sheetTop)
                     .animation(.smooth(duration: 0.35), value: mapState.sheetDetent)
             }
             .mapScope(mapScope)
@@ -216,6 +240,7 @@ struct MapScreen: View {
                 .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                 .presentationDragIndicator(.visible)
                 .interactiveDismissDisabled()
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { sheetTop = $0 }
             }
     }
 
@@ -323,7 +348,7 @@ struct MapScreen: View {
                 .avoidingReservedRegions()
         }
         .padding(.horizontal)
-        .padding(.top, 4)
+        .padding(.top, topChromeTopPadding)
         .padding(.bottom, 8)
     }
 
