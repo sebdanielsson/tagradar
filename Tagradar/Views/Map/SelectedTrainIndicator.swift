@@ -157,7 +157,10 @@ struct SelectedTrainIndicator: View {
                 .padding(.leading, Self.leadingMargin)
                 .padding(.bottom, bottomClearance)
                 .frame(width: bounds.width, height: bounds.height, alignment: .bottomLeading)
-                .offset(x: bounds.minX, y: bounds.minY)
+                // Padding rather than an offset, so the transition below scales from the pill's own
+                // corner: an offset moves the drawing but not the frame the scale is anchored to.
+                .padding(.leading, bounds.minX)
+                .padding(.top, bounds.minY)
                 .transition(.scale(scale: 0.6, anchor: .bottomLeading).combined(with: .opacity))
                 .accessibilityLabel(Text("Show train \(placement.trainNumber)"))
                 .accessibilityValue(Text(verbatim: Self.distance(placement.distance)))

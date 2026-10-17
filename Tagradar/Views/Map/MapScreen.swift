@@ -57,8 +57,10 @@ struct MapScreen: View {
             }
         }
         .background {
+            // `.container` only: ignoring the keyboard too would report a docked iPad keyboard as the
+            // bottom inset and lift the train pill above it twice over.
             Color.clear
-                .ignoresSafeArea()
+                .ignoresSafeArea(.container)
                 .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { windowTopInset = $0 }
                 .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { windowBottomInset = $0 }
         }
