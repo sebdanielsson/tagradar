@@ -118,34 +118,56 @@ final class SelectedTrainTracker {
     }
 }
 
-/// A glass pill at the edge of the map pointing towards the selected train when it's out of view,
-/// with its number and how far away it is. Tapping it brings the train back into view.
+/// A glass pill in the bottom-leading corner of the map pointing towards the selected train when
+/// it's out of view, with its number and how far away it is. Tapping it brings the train back into
+/// view.
+///
+/// It stays in that corner rather than sliding along the edge towards the train: an edge-hugging pill
+/// ended up wherever the train's bearing pointed, often the middle of the map above the card, where it
+/// covered what the user had just panned to look at (#70). Only the arrow turns. The corner mirrors
+/// the map controls in the bottom-trailing one on iPhone, just above the card, and is free on iPad,
+/// whose controls are along the top.
 struct SelectedTrainIndicator: View {
     let tracker: SelectedTrainTracker
+    /// Extra space under the pill, on top of the unobscured area's own bottom edge: on iPad the
+    /// home indicator and the Apple Maps attribution (`MapLayout.regularIndicatorBottomClearance`).
+    /// Kept apart from the bounds the tracker uses, so it moves the pill without changing which
+    /// trains count as in view.
+    var bottomClearance: CGFloat = 0
     let action: () -> Void
 
-    @State private var size: CGSize = .zero
-
-    /// Space kept between the pill and the edge of the unobscured area.
-    private static let margin: CGFloat = 10
+    /// Space between the pill and the leading edge: the same as the status pill above it.
+    static let leadingMargin: CGFloat = 16
+    /// The centre of the arrow badge, from the pill's bottom-leading corner: 6 pt padding plus half
+    /// the 24 pt circle across, and half the pill's height up.
+    static let arrowOffset = CGSize(width: 18, height: -18)
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottomLeading) {
             if let placement = tracker.placement {
-                let layout = Self.layout(for: placement, size: size)
+                let bounds = placement.bounds
                 Button(action: action) {
-                    label(placement, angle: layout.angle)
+                    label(placement, angle: Self.arrowAngle(bounds: bounds, bottomClearance: bottomClearance, target: placement.target))
                 }
                 .buttonStyle(.plain)
                 .glassEffect(.regular.interactive(), in: .capsule)
-                .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
-                .position(layout.position)
-                .transition(.scale(scale: 0.6).combined(with: .opacity))
+                // Never wider than the unobscured area, which on iPhone ends where the map controls
+                // begin, so at large text sizes the pill shortens its text rather than run under them.
+                .frame(maxWidth: max(0, bounds.width - 2 * Self.leadingMargin), alignment: .leading)
+                .padding(.leading, Self.leadingMargin)
+                .padding(.bottom, bottomClearance)
+                .frame(width: bounds.width, height: bounds.height, alignment: .bottomLeading)
+                // Padding rather than an offset: an offset moves the drawing but not the frame the
+                // transition's scale is anchored to.
+                .padding(.leading, bounds.minX)
+                .padding(.top, bounds.minY)
+                .transition(.scale(scale: 0.6, anchor: Self.pillCorner(bounds: bounds, bottomClearance: bottomClearance))
+                    .combined(with: .opacity))
                 .accessibilityLabel(Text("Show train \(placement.trainNumber)"))
                 .accessibilityValue(Text(verbatim: Self.distance(placement.distance)))
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .animation(.smooth(duration: 0.3), value: tracker.placement == nil)
     }
 
@@ -162,35 +184,42 @@ struct SelectedTrainIndicator: View {
                 Text(placement.trainNumber)
                     .font(.subheadline.weight(.semibold))
                     .monospacedDigit()
+                    .layoutPriority(1)
                 Text(verbatim: Self.distance(placement.distance))
                     .font(.subheadline)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
+            .lineLimit(1)
         }
         .padding(.leading, 6)
         .padding(.trailing, 12)
         .padding(.vertical, 6)
+        // Map chrome: grows with Dynamic Type up to a point, past which it would cover the map.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .contentShape(.capsule)
     }
 
-    /// Where the ray from the middle of the unobscured area to the train leaves it (shrunk by
-    /// the pill's own size, so the pill stays whole), and which way the arrow points along it.
-    private static func layout(
-        for placement: SelectedTrainTracker.Placement,
-        size: CGSize
-    ) -> (position: CGPoint, angle: Angle) {
-        let inner = placement.bounds.insetBy(dx: size.width / 2 + margin, dy: size.height / 2 + margin)
-        let center = CGPoint(x: placement.bounds.midX, y: placement.bounds.midY)
-        let dx = placement.target.x - center.x
-        let dy = placement.target.y - center.y
+    /// The pill's bottom-leading corner as a unit point of the frame its transition scales (from
+    /// the map's top-leading corner to the bottom-trailing corner of `bounds`), so it grows from and
+    /// shrinks into that corner rather than sliding.
+    static func pillCorner(bounds: CGRect, bottomClearance: CGFloat = 0) -> UnitPoint {
+        UnitPoint(
+            x: (bounds.minX + leadingMargin) / max(1, bounds.maxX),
+            y: (bounds.maxY - bottomClearance) / max(1, bounds.maxY)
+        )
+    }
+
+    /// Which way the arrow points: from where it sits, near the bottom-leading corner of `bounds`
+    /// (the unobscured area), to the train at `target`, so it reads correctly from the pill rather
+    /// than from the middle of the map. Left-to-right only; the map is not mirrored.
+    static func arrowAngle(bounds: CGRect, bottomClearance: CGFloat = 0, target: CGPoint) -> Angle {
+        let arrow = CGPoint(
+            x: bounds.minX + leadingMargin + arrowOffset.width,
+            y: bounds.maxY - bottomClearance + arrowOffset.height
+        )
         // Screen y grows downwards, and the arrow glyph points up at zero rotation.
-        let angle = Angle.radians(atan2(dx, -dy))
-        guard !inner.isNull, dx != 0 || dy != 0 else { return (center, angle) }
-        let scaleX = dx == 0 ? CGFloat.infinity : (inner.width / 2) / abs(dx)
-        let scaleY = dy == 0 ? CGFloat.infinity : (inner.height / 2) / abs(dy)
-        let scale = min(scaleX, scaleY, 1)
-        return (CGPoint(x: center.x + dx * scale, y: center.y + dy * scale), angle)
+        return .radians(atan2(target.x - arrow.x, -(target.y - arrow.y)))
     }
 
     /// `850 m` or `14 km` (`500 ft` or `14 mi` where the locale uses miles). The unit is picked

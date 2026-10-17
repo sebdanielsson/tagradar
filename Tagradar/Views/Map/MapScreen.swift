@@ -35,6 +35,8 @@ struct MapScreen: View {
     /// where it runs down the side (an iPhone Duo's outer display in landscape, its inner display in
     /// landscape). See `topChromeTopPadding`.
     @State private var windowTopInset: CGFloat = 0
+    /// The window's bottom safe-area inset (the home indicator); see `MapLayout.regularIndicatorBottomClearance`.
+    @State private var windowBottomInset: CGFloat = 0
     @Namespace private var mapScope
 
     /// Height of the collapsed card: the search field with breathing room under the grabber.
@@ -55,9 +57,12 @@ struct MapScreen: View {
             }
         }
         .background {
+            // `.container` only: ignoring the keyboard too would report a docked iPad keyboard as the
+            // bottom inset and lift the train pill above it twice over.
             Color.clear
-                .ignoresSafeArea()
+                .ignoresSafeArea(.container)
                 .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { windowTopInset = $0 }
+                .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { windowBottomInset = $0 }
         }
         // Keyed on the layout too: the framing depends on it, and a change mid-wait should start over.
         .task(id: [scenePhase == .active, isRegular]) { await centerOnUserAtLaunch() }
@@ -143,7 +148,7 @@ struct MapScreen: View {
         }
     }
 
-    private func map(indicatorInsets: EdgeInsets?) -> some View {
+    private func map(indicatorInsets: EdgeInsets?, indicatorBottomClearance: CGFloat = 0) -> some View {
         @Bindable var mapState = mapState
         return TrainMapView(
             camera: $mapState.camera,
@@ -153,6 +158,7 @@ struct MapScreen: View {
             selectedStation: mapState.selectedStation,
             onSelectStation: { focus(on: $0) },
             indicatorInsets: indicatorInsets,
+            indicatorBottomClearance: indicatorBottomClearance,
             scope: mapScope
         )
     }
@@ -262,13 +268,16 @@ struct MapScreen: View {
             )
             .navigationSplitViewColumnWidth(min: 320, ideal: MapLayout.sidebarWidth, max: 440)
         } detail: {
-            map(indicatorInsets: EdgeInsets(top: topChromeBottom, leading: 0, bottom: 0, trailing: 0))
-                .ignoresSafeArea(edges: .top)
-                .safeAreaInset(edge: .top, spacing: 0) { measuringTopChrome(regularTopOverlay) }
-                .mapScope(mapScope)
-                // The system bar would only carry the sidebar toggle, and an otherwise empty bar
-                // collapses along with it; the toggle lives in the overlay instead.
-                .toolbar(.hidden, for: .navigationBar)
+            map(
+                indicatorInsets: EdgeInsets(top: topChromeBottom, leading: 0, bottom: 0, trailing: 0),
+                indicatorBottomClearance: MapLayout.regularIndicatorBottomClearance(windowBottomInset: windowBottomInset)
+            )
+            .ignoresSafeArea(edges: .top)
+            .safeAreaInset(edge: .top, spacing: 0) { measuringTopChrome(regularTopOverlay) }
+            .mapScope(mapScope)
+            // The system bar would only carry the sidebar toggle, and an otherwise empty bar
+            // collapses along with it; the toggle lives in the overlay instead.
+            .toolbar(.hidden, for: .navigationBar)
         }
         // Attached outside the split view on purpose: inside it, the inspector's toolbar (Close,
         // Follow, Star, Share) is unified into the map column's bar, which is hidden. Out here it

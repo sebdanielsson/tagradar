@@ -13,10 +13,10 @@ struct TrainMapView: View {
     var selectedKey: TrainKey?
     var selectedStation: TrainStation?
     var onSelectStation: (TrainStation) -> Void
-    /// What covers the edges of the map — the card, the status pill, the controls — in the map's
-    /// own points. The off-screen indicator stays inside what's left; `nil` hides it, for when the
-    /// card covers the whole map.
+    /// What covers the map's edges (card, status pill, controls), in its points; the off-screen indicator stays
+    /// in the rest, `nil` hides it. The clearance lifts it without counting as cover (`SelectedTrainIndicator`).
     var indicatorInsets: EdgeInsets?
+    var indicatorBottomClearance: CGFloat = 0
     var scope: Namespace.ID
 
     @Environment(LiveTrainStore.self) private var live
@@ -86,7 +86,7 @@ struct TrainMapView: View {
                 }
                 .coordinateSpace(.named(Self.mapSpace))
                 .overlay {
-                    SelectedTrainIndicator(tracker: indicator) {
+                    SelectedTrainIndicator(tracker: indicator, bottomClearance: indicatorBottomClearance) {
                         showSelectedTrain(proxy)
                     }
                 }
