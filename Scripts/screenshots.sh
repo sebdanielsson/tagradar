@@ -245,6 +245,12 @@ for DEVICE in "${DEVICES[@]}"; do
     --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 >/dev/null 2>&1 || true
   [ -x "$IDB" ] || { echo "idb not found at $IDB — install it or set IDB=<path>"; exit 1; }
   "$IDB" connect "$UDID" >/dev/null 2>&1 || true
+  # A fresh install has no station directory and no map tiles yet, and its first launch spends far
+  # longer than SETTLE fetching them: the first shots came out as an empty map with "Connecting…".
+  # One warm-up launch fills both caches before anything is captured.
+  echo "▶ Warming up $DEVICE"
+  SIMCTL_CHILD_TRV_API_KEY="$TRV_API_KEY" xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID" >/dev/null
+  python3 -c "import time; time.sleep(${WARMUP:-30})"
 
   for LOCALE in "${LOCALE_LIST[@]}"; do
     case "$LOCALE" in
