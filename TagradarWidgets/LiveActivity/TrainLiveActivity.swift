@@ -35,9 +35,19 @@ struct TrainLiveActivity: Widget {
                     JourneyProgress(attributes: context.attributes, state: context.state)
                 }
             } compactLeading: {
-                Label(context.attributes.ident, systemImage: "train.side.front.car")
-                    .font(.caption.weight(.semibold))
-                    .labelStyle(.titleAndIcon)
+                // On iPhone Duo's outer display the Dynamic Island runs down the side, and its compact
+                // views are a few points wide: there the icon took all the room and the train number
+                // truncated to an ellipsis. Fall back to the number alone, which is the part worth
+                // keeping, and as a last resort let it shrink.
+                ViewThatFits(in: .horizontal) {
+                    Label(context.attributes.ident, systemImage: "train.side.front.car")
+                        .labelStyle(.titleAndIcon)
+                    Text(context.attributes.ident)
+                    Text(context.attributes.ident)
+                        .minimumScaleFactor(0.5)
+                }
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
             } compactTrailing: {
                 CompactStatus(state: context.state)
             } minimal: {
@@ -126,9 +136,13 @@ private struct CompactStatus: View {
         case .arrived:
             Image(systemName: "checkmark.circle.fill").foregroundStyle(color)
         default:
+            // Shrinks rather than truncates in the narrow Dynamic Island on iPhone Duo's outer display,
+            // where a clock time ("16:05") is wider than the island.
             Text(compactDelay)
                 .font(.caption.weight(.semibold))
                 .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
                 .foregroundStyle(color)
         }
     }
