@@ -364,6 +364,8 @@ for element in json.load(sys.stdin):
           rm -rf "$dir"
           [ "${width:-0}" -gt "${height:-1}" ] && break
         fi
+        # Brings the Duo up in DeviceHub, whose pose controls are the only way to fold it.
+        open "devices://device/open?id=$UDID" >/dev/null 2>&1 || true
         if [ -t 0 ]; then
           read -r -p "  Put the iPhone Duo $pose in DeviceHub, then press Return… "
         else
