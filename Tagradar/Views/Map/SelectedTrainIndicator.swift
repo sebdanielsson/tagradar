@@ -118,16 +118,27 @@ final class SelectedTrainTracker {
     }
 }
 
-/// A glass pill at the edge of the map pointing towards the selected train when it's out of view,
-/// with its number and how far away it is. Tapping it brings the train back into view.
+/// A glass pill in the bottom-leading corner of the map pointing towards the selected train when
+/// it's out of view, with its number and how far away it is. Tapping it brings the train back into
+/// view.
+///
+/// It stays in that corner rather than sliding along the edge towards the train: an edge-hugging pill
+/// ended up wherever the train's bearing pointed, often the middle of the map above the card, where it
+/// covered what the user had just panned to look at (#70). Only the arrow turns. The corner mirrors
+/// the map controls in the bottom-trailing one on iPhone, just above the card, and is free on iPad,
+/// whose controls are along the top.
 struct SelectedTrainIndicator: View {
     let tracker: SelectedTrainTracker
     let action: () -> Void
 
     @State private var size: CGSize = .zero
 
-    /// Space kept between the pill and the edge of the unobscured area.
-    private static let margin: CGFloat = 10
+    /// Space between the pill and the leading edge: the same as the status pill above it.
+    static let leadingMargin: CGFloat = 16
+    /// Space between the pill and the bottom of the unobscured area. On iPhone that bottom is
+    /// already the bottom of the map controls (see `MapLayout.controlsBottomPadding`), so none is
+    /// needed to line the two up; on iPad it is the bottom of the map.
+    static let bottomMargin: CGFloat = 0
 
     var body: some View {
         ZStack {
@@ -174,23 +185,25 @@ struct SelectedTrainIndicator: View {
         .contentShape(.capsule)
     }
 
-    /// Where the ray from the middle of the unobscured area to the train leaves it (shrunk by
-    /// the pill's own size, so the pill stays whole), and which way the arrow points along it.
     private static func layout(
         for placement: SelectedTrainTracker.Placement,
         size: CGSize
     ) -> (position: CGPoint, angle: Angle) {
-        let inner = placement.bounds.insetBy(dx: size.width / 2 + margin, dy: size.height / 2 + margin)
-        let center = CGPoint(x: placement.bounds.midX, y: placement.bounds.midY)
-        let dx = placement.target.x - center.x
-        let dy = placement.target.y - center.y
+        layout(bounds: placement.bounds, target: placement.target, size: size)
+    }
+
+    /// The pill's centre, in the bottom-leading corner of `bounds` (the unobscured area), and which
+    /// way its arrow points: from the pill to the train at `target`, so it reads correctly from where
+    /// it sits rather than from the middle of the map. Left-to-right only; the map is not mirrored.
+    static func layout(bounds: CGRect, target: CGPoint, size: CGSize) -> (position: CGPoint, angle: Angle) {
+        let position = CGPoint(
+            x: bounds.minX + leadingMargin + size.width / 2,
+            y: bounds.maxY - bottomMargin - size.height / 2
+        )
+        let dx = target.x - position.x
+        let dy = target.y - position.y
         // Screen y grows downwards, and the arrow glyph points up at zero rotation.
-        let angle = Angle.radians(atan2(dx, -dy))
-        guard !inner.isNull, dx != 0 || dy != 0 else { return (center, angle) }
-        let scaleX = dx == 0 ? CGFloat.infinity : (inner.width / 2) / abs(dx)
-        let scaleY = dy == 0 ? CGFloat.infinity : (inner.height / 2) / abs(dy)
-        let scale = min(scaleX, scaleY, 1)
-        return (CGPoint(x: center.x + dx * scale, y: center.y + dy * scale), angle)
+        return (position, .radians(atan2(dx, -dy)))
     }
 
     /// `850 m` or `14 km` (`500 ft` or `14 mi` where the locale uses miles). The unit is picked

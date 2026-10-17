@@ -25,6 +25,19 @@ enum MapLayout {
 
     // MARK: Map chrome
 
+    /// Height of the Apple Maps logo and Legal link MapKit draws in the map's bottom-leading corner,
+    /// with the space MapKit leaves around them.
+    static let mapAttributionHeight: CGFloat = 36
+
+    /// What covers the bottom of the regular layout's map: the home indicator, and above it the
+    /// Apple Maps attribution, which must stay visible. The off-screen train indicator sits in the
+    /// map's bottom-leading corner (`SelectedTrainIndicator`), right where the attribution is, so it
+    /// stays above both. The iPhone layout needs none of this: there the card covers the
+    /// attribution, and the indicator sits above the card.
+    static func regularIndicatorBottomInset(windowBottomInset: CGFloat) -> CGFloat {
+        windowBottomInset + mapAttributionHeight
+    }
+
     /// Space above the status pill and the buttons beside it. Under a status bar a few points are
     /// enough. Without one along the top (an iPhone Duo in landscape, whose status bar runs down the
     /// side) the row would sit 4 pt from the screen's edge, tucked into its rounded corner, so it
