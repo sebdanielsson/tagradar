@@ -38,6 +38,17 @@ struct SelectedTrainIndicatorTests {
         #expect(abs(unlifted.degrees - 90) > 1)
     }
 
+    @Test("The pill appears from its own corner")
+    func transitionAnchor() {
+        // The transition scales the frame from the map's origin to the bottom-trailing corner of
+        // `bounds`, (376, 420); the pill's corner is at (16, 420), or (16, 364) lifted by 56.
+        let corner = SelectedTrainIndicator.pillCorner(bounds: bounds)
+        #expect(abs(corner.x - 16.0 / 376) < 0.0001)
+        #expect(corner.y == 1)
+        let lifted = SelectedTrainIndicator.pillCorner(bounds: bounds, bottomClearance: 56)
+        #expect(abs(lifted.y - 364.0 / 420) < 0.0001)
+    }
+
     @Test("On iPad the pill clears the home indicator and the Apple Maps attribution")
     func regularBottomClearance() {
         #expect(MapLayout.regularIndicatorBottomClearance(windowBottomInset: 20) == 56)

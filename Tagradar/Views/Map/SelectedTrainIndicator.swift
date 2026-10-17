@@ -157,11 +157,12 @@ struct SelectedTrainIndicator: View {
                 .padding(.leading, Self.leadingMargin)
                 .padding(.bottom, bottomClearance)
                 .frame(width: bounds.width, height: bounds.height, alignment: .bottomLeading)
-                // Padding rather than an offset, so the transition below scales from the pill's own
-                // corner: an offset moves the drawing but not the frame the scale is anchored to.
+                // Padding rather than an offset: an offset moves the drawing but not the frame the
+                // transition's scale is anchored to.
                 .padding(.leading, bounds.minX)
                 .padding(.top, bounds.minY)
-                .transition(.scale(scale: 0.6, anchor: .bottomLeading).combined(with: .opacity))
+                .transition(.scale(scale: 0.6, anchor: Self.pillCorner(bounds: bounds, bottomClearance: bottomClearance))
+                    .combined(with: .opacity))
                 .accessibilityLabel(Text("Show train \(placement.trainNumber)"))
                 .accessibilityValue(Text(verbatim: Self.distance(placement.distance)))
             }
@@ -197,6 +198,16 @@ struct SelectedTrainIndicator: View {
         // Map chrome: grows with Dynamic Type up to a point, past which it would cover the map.
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .contentShape(.capsule)
+    }
+
+    /// The pill's bottom-leading corner as a unit point of the frame its transition scales (from
+    /// the map's top-leading corner to the bottom-trailing corner of `bounds`), so it grows from and
+    /// shrinks into that corner rather than sliding.
+    static func pillCorner(bounds: CGRect, bottomClearance: CGFloat = 0) -> UnitPoint {
+        UnitPoint(
+            x: (bounds.minX + leadingMargin) / max(1, bounds.maxX),
+            y: (bounds.maxY - bottomClearance) / max(1, bounds.maxY)
+        )
     }
 
     /// Which way the arrow points: from where it sits, near the bottom-leading corner of `bounds`
