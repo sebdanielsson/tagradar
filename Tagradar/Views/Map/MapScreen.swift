@@ -19,6 +19,8 @@ struct MapScreen: View {
     @Environment(MapState.self) private var mapState
     @State private var sheetPresented = true
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    /// Size of the regular layout's window; see `updateColumnVisibility`.
+    @State private var windowSize: CGSize = .zero
     /// Bumped every time a station is focused. Part of the inspector stack's identity, because
     /// the signature alone is not: selecting the same station again after a train was pushed from
     /// its board would otherwise leave that train on screen instead of reopening the board.
@@ -281,12 +283,31 @@ struct MapScreen: View {
         }
         // Binding `columnVisibility` at all opts out of the automatic behaviour: the split view
         // resolves `.automatic` once and writes the concrete value back, after which a rotation
-        // leaves the sidebar wherever it was. Landscape has the width for all three columns and
-        // portrait does not, so follow the shape of the window the way Mail does.
-        .onGeometryChange(for: Bool.self) { $0.size.width > $0.size.height } action: { isWide in
-            withAnimation {
-                columnVisibility = isWide ? .all : .detailOnly
-            }
+        // leaves the sidebar wherever it was. So decide it here whenever the window or the
+        // inspector changes, and leave it alone in between, so the sidebar button keeps working.
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            windowSize = size
+            updateColumnVisibility()
+        }
+        .onChange(of: inspectorBinding.wrappedValue) { _, _ in updateColumnVisibility() }
+    }
+
+    /// Shows the sidebar when the window is landscape and has room for it beside the map, and for
+    /// the inspector too while something is selected. Portrait never does, the way Mail does it.
+    /// The inspector check matters on an iPhone Duo's inner display in landscape: about 950 pt
+    /// wide, so the sidebar and the inspector together left the map a sliver about 100 pt wide.
+    /// There the sidebar steps aside while a train or station is open and comes back when it closes.
+    /// A 13-inch or 11-inch iPad in landscape is wide enough for all three.
+    private func updateColumnVisibility() {
+        let sidebar: CGFloat = 360
+        let inspector: CGFloat = inspectorBinding.wrappedValue ? 400 : 0
+        let minimumMap: CGFloat = 360
+        let showsSidebar = windowSize.width > windowSize.height
+            && windowSize.width >= sidebar + inspector + minimumMap
+        let visibility: NavigationSplitViewVisibility = showsSidebar ? .all : .detailOnly
+        guard visibility != columnVisibility else { return }
+        withAnimation {
+            columnVisibility = visibility
         }
     }
 
