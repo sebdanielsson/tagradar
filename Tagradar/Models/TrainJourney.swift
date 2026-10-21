@@ -31,9 +31,11 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
         passingPoints = Self.buildPassingPoints(between: stops, from: announcements)
     }
 
-    /// `passingPoints`, except that a leg the train hasn't finished yet takes them from `previous`
+    /// `passingPoints`, except that a leg the train hasn't finished yet continues with `previous`'s
     /// — an earlier run of the same train — where that run had the same pair of stops, so the map
-    /// follows the right line ahead of the train too. A leg `previous` has none for keeps its own.
+    /// follows the right line ahead of the train too. What this run has already passed stays: the
+    /// earlier run's points are appended after the last one both share, and if this run has passed
+    /// one the earlier run didn't, it's on another line today and keeps only its own.
     func routePassingPoints(previous: TrainJourney?) -> [[String]] {
         guard let previous else { return passingPoints }
         let leg = { (from: TrainStop, to: TrainStop) in "\(from.signature)|\(to.signature)" }
@@ -43,7 +45,9 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
         }
         return zip(zip(stops, stops.dropFirst()), passingPoints).map { pair, passed in
             guard !pair.1.hasArrived, let ahead = earlier[leg(pair.0, pair.1)] else { return passed }
-            return ahead
+            guard let last = passed.last else { return ahead }
+            guard let shared = ahead.lastIndex(of: last) else { return passed }
+            return passed + ahead[(shared + 1)...]
         }
     }
 
