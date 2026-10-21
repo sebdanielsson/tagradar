@@ -9,6 +9,7 @@ import TrafikverketKit
 struct MapScreen: View {
     @Environment(LiveTrainStore.self) private var live
     @Environment(StationDirectory.self) private var stations
+    @Environment(JourneyStore.self) private var journeys
     @Environment(AppNavigation.self) private var navigation
     @Environment(LocationManager.self) private var location
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -66,6 +67,12 @@ struct MapScreen: View {
         }
         // Keyed on the layout too: the framing depends on it, and a change mid-wait should start over.
         .task(id: [scenePhase == .active, isRegular]) { await centerOnUserAtLaunch() }
+        // The route drawn ahead of the selected train follows its previous run's passing points.
+        .task(id: mapState.selectedKey) {
+            if let key = mapState.selectedKey {
+                await journeys.loadPreviousRun(key)
+            }
+        }
         .onChange(of: mapState.selectedTrainID) { _, id in
             Self.logger.debug("selectedTrainID → \(id ?? "nil", privacy: .public)")
             guard let id, let train = live.train(id: id) else { return }

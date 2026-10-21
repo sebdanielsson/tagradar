@@ -13,6 +13,10 @@ final class JourneyStore {
 
     private var entries: [String: Entry] = [:]
     private var inFlight: [String: Task<TrainJourney?, any Error>] = [:]
+    /// The same train number's run the day before, keyed by the run it stands in for: missing
+    /// until fetched, `.some(nil)` when the train didn't run that day.
+    private var previousRuns: [String: TrainJourney?] = [:]
+    private var previousRunsInFlight: [String: Task<TrainJourney?, any Error>] = [:]
     private let service: TrainService
     private static let maxAge: TimeInterval = 20
 
@@ -41,6 +45,34 @@ final class JourneyStore {
         let journey = try await task.value
         entries[key.id] = Entry(journey: journey, loadedAt: .now)
         return journey
+    }
+
+    /// The same train number's run the day before `key`, once `loadPreviousRun` has fetched it. Its
+    /// passing points stand in for the stretch `key`'s run hasn't covered yet (see
+    /// `TrainJourney.routePassingPoints(previous:)`).
+    func previousRun(_ key: TrainKey?) -> TrainJourney? {
+        guard let key else { return nil }
+        return previousRuns[key.id].flatMap(\.self)
+    }
+
+    /// Fetches `previousRun(_:)` once per run. A past run doesn't change, so it's never refreshed;
+    /// a failed fetch isn't cached, so the next call retries.
+    func loadPreviousRun(_ key: TrainKey) async {
+        guard previousRuns[key.id] == nil,
+              let day = SwedishTime.calendar.date(byAdding: .day, value: -1, to: key.departureDate) else { return }
+        // Unstructured and shared, like `load(_:)`'s: the caller's task is cancelled whenever the
+        // map deselects or rebuilds, which mustn't cancel a fetch a later caller is waiting on.
+        let task = previousRunsInFlight[key.id] ?? Task { [service] in
+            try await service.journey(for: TrainKey(ident: key.ident, departureDate: day))
+        }
+        previousRunsInFlight[key.id] = task
+        defer { previousRunsInFlight[key.id] = nil }
+        do {
+            let run = try await task.value
+            previousRuns[key.id] = .some(run)
+        } catch {
+            // Left uncached so the next selection retries.
+        }
     }
 
     func store(_ journey: TrainJourney) {

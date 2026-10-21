@@ -7,7 +7,7 @@ import TrafikverketKit
 struct TrainJourneyTests {
     private func announcement(
         id: String, type: TrainAnnouncement.ActivityType, station: String, advertised: String,
-        estimated: String? = nil, actual: String? = nil, canceled: Bool = false, isAdvertised: Bool? = nil,
+        estimated: String? = nil, actual: String? = nil, passedAt: String? = nil, canceled: Bool = false, isAdvertised: Bool? = nil,
         composition: String? = nil, product: String? = "SJ Snabbtåg", operator operatorCode: String? = nil
     ) throws -> TrainAnnouncement {
         var json: [String: Any] = [
@@ -37,6 +37,9 @@ struct TrainJourneyTests {
         }
         if let actual {
             json["TimeAtLocation"] = "2026-09-02T\(actual):00.000+02:00"
+        }
+        if let passedAt {
+            json["TimeAtLocationWithSeconds"] = "2026-09-02T\(passedAt).000+02:00"
         }
         let data = try JSONSerialization.data(withJSONObject: json)
         return try JSONDecoder.trafikverket.decode(TrainAnnouncement.self, from: data)
@@ -111,6 +114,64 @@ struct TrainJourneyTests {
             announcements: rows
         )
         #expect(journey.stops.map(\.signature) == ["Cst", "G"])
+    }
+
+    @Test func passingPointsAreGroupedPerLegInRunningOrder() throws {
+        let rows = try [
+            announcement(id: "1", type: .departure, station: "Nr", advertised: "06:52"),
+            // Same minute as the departure, so it could be on either side of the stop.
+            announcement(id: "2", type: .departure, station: "Ns", advertised: "06:52", passedAt: "06:53:40", isAdvertised: false),
+            announcement(id: "3", type: .departure, station: "Åbs", advertised: "06:57", passedAt: "06:58:12", isAdvertised: false),
+            announcement(id: "4", type: .arrival, station: "K", advertised: "07:18", passedAt: "07:18:30", isAdvertised: false),
+            announcement(id: "5", type: .departure, station: "K", advertised: "07:18", passedAt: "07:18:30", isAdvertised: false),
+            // Same advertised minute, listed out of running order: when the train passed decides.
+            announcement(id: "6", type: .departure, station: "Nsj", advertised: "07:34", passedAt: "07:39:05", isAdvertised: false),
+            announcement(id: "7", type: .departure, station: "Sp", advertised: "07:34", passedAt: "07:38:10", isAdvertised: false),
+            announcement(id: "8", type: .arrival, station: "Söö", advertised: "08:00"),
+            // Unadvertised row at a stop belongs to the stop, not the leg.
+            announcement(id: "9", type: .departure, station: "Söö", advertised: "08:01", isAdvertised: false),
+            announcement(id: "10", type: .arrival, station: "Cst", advertised: "08:23"),
+        ]
+        let journey = try TrainJourney(
+            key: TrainKey(ident: "264", departureDate: #require(rows[0].scheduledDepartureDateTime)),
+            announcements: rows
+        )
+        #expect(journey.stops.map(\.signature) == ["Nr", "Söö", "Cst"])
+        #expect(journey.passingPoints == [["Åbs", "K", "Sp", "Nsj"], []])
+    }
+
+    @Test func legsAheadTakePassingPointsFromThePreviousRun() throws {
+        let previousRows = try [
+            announcement(id: "p1", type: .departure, station: "Lp", advertised: "06:26"),
+            announcement(id: "p2", type: .departure, station: "Lgm", advertised: "06:31", passedAt: "06:31:20", isAdvertised: false),
+            announcement(id: "p3", type: .arrival, station: "Nr", advertised: "06:51"),
+            announcement(id: "p4", type: .departure, station: "Nr", advertised: "06:52"),
+            announcement(id: "p5", type: .departure, station: "Åbs", advertised: "06:57", passedAt: "06:57:50", isAdvertised: false),
+            announcement(id: "p6", type: .departure, station: "K", advertised: "07:18", passedAt: "07:18:30", isAdvertised: false),
+            announcement(id: "p7", type: .arrival, station: "Söö", advertised: "08:00"),
+        ]
+        let todayRows = try [
+            announcement(id: "1", type: .departure, station: "Lp", advertised: "06:26", actual: "06:26"),
+            announcement(id: "2", type: .departure, station: "Kms", advertised: "06:40", passedAt: "06:41:00", isAdvertised: false),
+            announcement(id: "3", type: .arrival, station: "Nr", advertised: "06:51", actual: "06:51"),
+            announcement(id: "4", type: .departure, station: "Nr", advertised: "06:52", actual: "06:54"),
+            // Passed so far on the leg in progress; the previous run has the rest of it.
+            announcement(id: "5", type: .departure, station: "Åbs", advertised: "06:57", passedAt: "06:58:12", isAdvertised: false),
+            announcement(id: "6", type: .arrival, station: "Söö", advertised: "08:00"),
+        ]
+        // Diverted today: it has passed somewhere the previous run didn't.
+        var divertedRows = todayRows
+        divertedRows[4] = try announcement(
+            id: "5", type: .departure, station: "Nk", advertised: "06:57", passedAt: "06:58:12", isAdvertised: false
+        )
+        let key = try TrainKey(ident: "264", departureDate: #require(todayRows[0].scheduledDepartureDateTime))
+        let previous = TrainJourney(key: key, announcements: previousRows)
+        let today = TrainJourney(key: key, announcements: todayRows)
+        // The finished leg keeps what this run actually passed.
+        #expect(today.routePassingPoints(previous: previous) == [["Kms"], ["Åbs", "K"]])
+        #expect(today.routePassingPoints(previous: nil) == [["Kms"], ["Åbs"]])
+        let diverted = TrainJourney(key: key, announcements: divertedRows)
+        #expect(diverted.routePassingPoints(previous: previous) == [["Kms"], ["Nk"]])
     }
 
     @Test func compositionFallsBackToArrivalRow() throws {

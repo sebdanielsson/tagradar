@@ -228,13 +228,14 @@ struct TrainMapView: View {
     }
 
     /// Everything `refreshRoute` depends on, so a change to any of it recomputes the route exactly
-    /// once: the journey's ordered stops (only their signatures — the journey itself is refreshed
-    /// every 30 s with new times, which must not re-stitch an identical line), the station
-    /// directory (stop coordinates come from it — a route computed before it finished loading
-    /// would be missing stops), and the rail network (straight lines are drawn until it's parsed,
-    /// then upgraded to real track).
+    /// once: the journey's ordered stops and the stations it passes between them (only their
+    /// signatures — the journey itself is refreshed every 30 s with new times, which must not
+    /// re-stitch an identical line), the station directory (stop coordinates come from it — a
+    /// route computed before it finished loading would be missing stops), and the rail network
+    /// (straight lines are drawn until it's parsed, then upgraded to real track).
     private struct RouteInputs: Equatable {
         let stopSignatures: [String]
+        let passingPoints: [[String]]
         let stationsLoaded: Bool
         let networkLoaded: Bool
     }
@@ -242,6 +243,7 @@ struct TrainMapView: View {
     private var routeInputs: RouteInputs {
         RouteInputs(
             stopSignatures: stopSignatures,
+            passingPoints: journeys.cached(selectedKey)?.routePassingPoints(previous: journeys.previousRun(selectedKey)) ?? [],
             stationsLoaded: stations.isLoaded,
             networkLoaded: RailNetwork.shared.isLoaded
         )
@@ -488,21 +490,19 @@ struct TrainMapView: View {
         }
     }
 
-    /// Recomputes `routeLegs` for the currently selected journey: each consecutive stop pair's real
-    /// track shape where the bundled network has it, a straight segment otherwise (see
-    /// `RailGraph.legs(through:route:)`). Cheap when nothing changed (an unchanged pair hits
-    /// `RailNetwork`'s cache), but still only called when `routeInputs` changes — never from `body`.
+    /// Recomputes `routeLegs` for the selected journey: real track where the bundled network has
+    /// it, a straight segment otherwise (see `RailGraph.legs(stops:passingPoints:anchor:onTrack:route:)`).
+    /// Cheap when nothing changed (an unchanged pair hits `RailNetwork`'s cache), but still only
+    /// called when `routeInputs` changes — never from `body`.
     private func refreshRoute() {
-        let stops = routeInputs.stopSignatures.compactMap { signature in
-            stopAnchor(for: signature).map { (signature: signature, coordinate: $0) }
+        let inputs = routeInputs
+        let legs = RailGraph.legs(
+            stops: inputs.stopSignatures, passingPoints: inputs.passingPoints, anchor: stopAnchor(for:),
+            onTrack: RailNetwork.shared.stationCoordinate, route: RailNetwork.shared.route
+        )
+        if !legs.isEmpty || !routeLegs.isEmpty {
+            routeLegs = legs
         }
-        guard !stops.isEmpty else {
-            if !routeLegs.isEmpty {
-                routeLegs = []
-            }
-            return
-        }
-        routeLegs = RailGraph.legs(through: stops) { RailNetwork.shared.route(from: $0, to: $1) }
     }
 
     private var mapStyle: MapStyle {

@@ -11,7 +11,8 @@ import Testing
 /// ```
 ///
 /// `A→B` has two paths: 10 via the junction `J`, or 3 direct via `M` — the direct one should
-/// always win. `D(4)` has no edges, so it's reachable by signature but not by track.
+/// always win unless a leg is routed through `J` explicitly. `D(4)` has no edges, so it's
+/// reachable by signature but not by track.
 enum RailGraphFixture {
     static let a = CLLocationCoordinate2D(latitude: 60.0, longitude: 18.0)
     static let j = CLLocationCoordinate2D(latitude: 60.1, longitude: 18.0)
@@ -48,7 +49,7 @@ enum RailGraphFixture {
             ],
             [], // D(4) — isolated
         ],
-        stationNode: ["A": 0, "B": 2, "C": 3, "D": 4]
+        stationNode: ["A": 0, "J": 1, "B": 2, "C": 3, "D": 4]
     )
 }
 
@@ -73,6 +74,40 @@ enum RailGraphDetourFixture {
             [RailGraph.Adjacency(to: 0, edgeIndex: 0, forward: false), RailGraph.Adjacency(to: 1, edgeIndex: 2, forward: false)],
         ],
         stationNode: ["A": 0, "B": 2]
+    )
+}
+
+/// A straight line `A–X–B` with two stations on spurs off `X`: `N` 300 m away, as a station
+/// snapped to a siding or the other track sits beside the line, and `F` 2 km away. Neither is on
+/// the way from `A` to `B`, so routing through either would go out and back.
+enum RailGraphSpurFixture {
+    static let a = CLLocationCoordinate2D(latitude: 59.0, longitude: 18.0)
+    static let x = CLLocationCoordinate2D(latitude: 59.1, longitude: 18.0)
+    static let b = CLLocationCoordinate2D(latitude: 59.2, longitude: 18.0)
+    static let n = CLLocationCoordinate2D(latitude: 59.1, longitude: 18.0052)
+    static let f = CLLocationCoordinate2D(latitude: 59.1, longitude: 18.035)
+
+    static let graph = RailGraph(
+        nodeCoordinates: [a, x, b, n, f],
+        edges: [
+            RailGraph.Edge(points: [a, x], length: 11000),
+            RailGraph.Edge(points: [x, b], length: 11000),
+            RailGraph.Edge(points: [x, n], length: 300),
+            RailGraph.Edge(points: [x, f], length: 2000),
+        ],
+        adjacency: [
+            [RailGraph.Adjacency(to: 1, edgeIndex: 0, forward: true)],
+            [
+                RailGraph.Adjacency(to: 0, edgeIndex: 0, forward: false),
+                RailGraph.Adjacency(to: 2, edgeIndex: 1, forward: true),
+                RailGraph.Adjacency(to: 3, edgeIndex: 2, forward: true),
+                RailGraph.Adjacency(to: 4, edgeIndex: 3, forward: true),
+            ],
+            [RailGraph.Adjacency(to: 1, edgeIndex: 1, forward: false)],
+            [RailGraph.Adjacency(to: 1, edgeIndex: 2, forward: false)],
+            [RailGraph.Adjacency(to: 1, edgeIndex: 3, forward: false)],
+        ],
+        stationNode: ["A": 0, "B": 2, "N": 3, "F": 4]
     )
 }
 
@@ -199,8 +234,8 @@ struct RailGraphPolylineTests {
 struct RailGraphLegsTests {
     typealias Stop = (signature: String, coordinate: CLLocationCoordinate2D)
 
-    private func legs(_ stops: [Stop]) -> [[[Double]]] {
-        RailGraph.legs(through: stops, route: RailGraphFixture.graph.route).map { coordinates($0) ?? [] }
+    private func legs(_ stops: [Stop], via: [[String]] = [], graph: RailGraph = RailGraphFixture.graph) -> [[[Double]]] {
+        RailGraph.legs(through: stops, via: via, onTrack: graph.stationCoordinate, route: graph.route).map { coordinates($0) ?? [] }
     }
 
     @Test("One leg per consecutive stop pair, each kept separate rather than merged")
@@ -224,6 +259,48 @@ struct RailGraphLegsTests {
     @Test("A single stop has no legs")
     func singleStopHasNoLegs() {
         #expect(legs([("A", RailGraphFixture.a)]).isEmpty)
+    }
+
+    @Test("A leg is routed through the stations it passes instead of the shortest path")
+    func routesThroughPassingPoints() {
+        let stops: [Stop] = [("A", RailGraphFixture.a), ("B", RailGraphFixture.b), ("C", RailGraphFixture.c)]
+        let result = legs(stops, via: [["J"]])
+        #expect(result[0] == coordinates([RailGraphFixture.a, RailGraphFixture.j, RailGraphFixture.b]))
+        #expect(result[1] == coordinates([RailGraphFixture.b, RailGraphFixture.c]))
+    }
+
+    @Test("A stop with no coordinate merges the legs either side of it, passing points and all")
+    func unanchoredStopMergesLegs() {
+        let anchors = ["A": RailGraphFixture.a, "B": RailGraphFixture.b, "C": RailGraphFixture.c]
+        let result = RailGraph.legs(
+            stops: ["A", "Z", "B", "C"], passingPoints: [[], ["J"], []], anchor: { anchors[$0] },
+            onTrack: RailGraphFixture.graph.stationCoordinate, route: RailGraphFixture.graph.route
+        ).map { coordinates($0) ?? [] }
+        #expect(result == [
+            coordinates([RailGraphFixture.a, RailGraphFixture.j, RailGraphFixture.b]) ?? [],
+            coordinates([RailGraphFixture.b, RailGraphFixture.c]) ?? [],
+        ])
+    }
+
+    @Test("A passing point snapped beside the line doesn't pull the route out to it")
+    func ignoresPassingPointsNearTheLine() {
+        let stops: [Stop] = [("A", RailGraphSpurFixture.a), ("B", RailGraphSpurFixture.b)]
+        let direct = coordinates([RailGraphSpurFixture.a, RailGraphSpurFixture.x, RailGraphSpurFixture.b]) ?? []
+        #expect(legs(stops, via: [["N"]], graph: RailGraphSpurFixture.graph) == [direct])
+    }
+
+    @Test("A passing point the route would turn back at is dropped, however far off the line")
+    func dropsPassingPointsAtDeadEnds() {
+        let stops: [Stop] = [("A", RailGraphSpurFixture.a), ("B", RailGraphSpurFixture.b)]
+        let direct = coordinates([RailGraphSpurFixture.a, RailGraphSpurFixture.x, RailGraphSpurFixture.b]) ?? []
+        #expect(legs(stops, via: [["F"]], graph: RailGraphSpurFixture.graph) == [direct])
+    }
+
+    @Test("Passing points the network can't route to are skipped")
+    func skipsUnroutablePassingPoints() {
+        let stops: [Stop] = [("A", RailGraphFixture.a), ("B", RailGraphFixture.b)]
+        #expect(legs(stops, via: [["Z", "J", "D"]]) == [coordinates([RailGraphFixture.a, RailGraphFixture.j, RailGraphFixture.b]) ?? []])
+        #expect(legs(stops, via: [["Z"]]) == [coordinates([RailGraphFixture.a, RailGraphFixture.m, RailGraphFixture.b]) ?? []])
     }
 }
 
