@@ -134,7 +134,7 @@ public struct TrainAnnouncement: TRVObject, Hashable, Identifiable {
         "FromLocation", "InformationOwner", "LocationSignature", "ModifiedTime", "Operator",
         "OperationalTrainNumber", "OtherInformation", "PlannedEstimatedTimeAtLocation",
         "PlannedEstimatedTimeAtLocationIsValid", "ProductInformation", "ScheduledDepartureDateTime",
-        "Service", "TimeAtLocation", "ToLocation", "TrackAtLocation", "TrainComposition", "TrainOwner",
+        "Service", "TimeAtLocation", "TimeAtLocationWithSeconds", "ToLocation", "TrackAtLocation", "TrainComposition", "TrainOwner",
         "TypeOfTraffic", "ViaFromLocation", "ViaToLocation", "WebLink", "WebLinkName", "MobileWebLink",
     ]
 }

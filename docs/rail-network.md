@@ -96,13 +96,17 @@ from the real-world 329.6 km, so a dropped line or a broken contraction can't sh
   concatenating the real path between each consecutive pair of its stops — there's no precomputed
   table of "every travelled station pair" — and falls back to a straight segment for any pair
   where either station isn't in the network or the network hasn't loaded yet.
-- A leg isn't simply the shortest path between its two stops: an express that doesn't stop
+- A leg isn't always the shortest path between its two stops: an express that doesn't stop
   between Norrköping and Södertälje runs via Katrineholm, while the shortest track goes via
-  Nyköping. `TrainJourney.passingPoints` collects the unadvertised `TrainAnnouncement` rows the
-  train passes between each pair of stops, and the leg is routed through every one of them the
-  network knows. Only advertised stations are snapped (see `snap_stations.py`), so most technical
-  locations are skipped, but the bigger stations a train passes through are enough to pick the
-  right line.
+  Nyköping. `TrainJourney.passingPoints` collects the unadvertised `TrainAnnouncement` rows for
+  the stations the train passes between each pair of stops (ordered by when it actually passed —
+  rows sharing an advertised minute aren't listed in running order), and `RailGraph.legs` reroutes
+  the leg through those the network knows that lie more than 1 km off the shortest path. Closer
+  ones are on the same line, only snapped to the other track, a platform or a stub, and are
+  ignored; a waypoint the route would turn back at is dropped too. Over a full day's data this
+  changes only the Norrköping–Södertälje legs. Trafikverket publishes a passing row only once the
+  train has passed, so a leg is corrected only once the train is past the point where the lines
+  split.
 
 ## Regenerating
 

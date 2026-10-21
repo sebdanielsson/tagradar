@@ -7,7 +7,7 @@ import TrafikverketKit
 struct TrainJourneyTests {
     private func announcement(
         id: String, type: TrainAnnouncement.ActivityType, station: String, advertised: String,
-        estimated: String? = nil, actual: String? = nil, canceled: Bool = false, isAdvertised: Bool? = nil,
+        estimated: String? = nil, actual: String? = nil, passedAt: String? = nil, canceled: Bool = false, isAdvertised: Bool? = nil,
         composition: String? = nil, product: String? = "SJ Snabbtåg", operator operatorCode: String? = nil
     ) throws -> TrainAnnouncement {
         var json: [String: Any] = [
@@ -37,6 +37,9 @@ struct TrainJourneyTests {
         }
         if let actual {
             json["TimeAtLocation"] = "2026-09-02T\(actual):00.000+02:00"
+        }
+        if let passedAt {
+            json["TimeAtLocationWithSeconds"] = "2026-09-02T\(passedAt).000+02:00"
         }
         let data = try JSONSerialization.data(withJSONObject: json)
         return try JSONDecoder.trafikverket.decode(TrainAnnouncement.self, from: data)
@@ -117,13 +120,13 @@ struct TrainJourneyTests {
         let rows = try [
             announcement(id: "1", type: .departure, station: "Nr", advertised: "06:52"),
             // Same minute as the departure, so it could be on either side of the stop.
-            announcement(id: "2", type: .departure, station: "Ns", advertised: "06:52", isAdvertised: false),
-            announcement(id: "3", type: .departure, station: "Åbs", advertised: "06:57", isAdvertised: false),
-            announcement(id: "4", type: .arrival, station: "K", advertised: "07:18", isAdvertised: false),
-            announcement(id: "5", type: .departure, station: "K", advertised: "07:18", isAdvertised: false),
-            // A tie keeps the order the rows arrived in.
-            announcement(id: "6", type: .departure, station: "Sp", advertised: "07:34", isAdvertised: false),
-            announcement(id: "7", type: .departure, station: "Nsj", advertised: "07:34", isAdvertised: false),
+            announcement(id: "2", type: .departure, station: "Ns", advertised: "06:52", passedAt: "06:53:40", isAdvertised: false),
+            announcement(id: "3", type: .departure, station: "Åbs", advertised: "06:57", passedAt: "06:58:12", isAdvertised: false),
+            announcement(id: "4", type: .arrival, station: "K", advertised: "07:18", passedAt: "07:18:30", isAdvertised: false),
+            announcement(id: "5", type: .departure, station: "K", advertised: "07:18", passedAt: "07:18:30", isAdvertised: false),
+            // Same advertised minute, listed out of running order: when the train passed decides.
+            announcement(id: "6", type: .departure, station: "Nsj", advertised: "07:34", passedAt: "07:39:05", isAdvertised: false),
+            announcement(id: "7", type: .departure, station: "Sp", advertised: "07:34", passedAt: "07:38:10", isAdvertised: false),
             announcement(id: "8", type: .arrival, station: "Söö", advertised: "08:00"),
             // Unadvertised row at a stop belongs to the stop, not the leg.
             announcement(id: "9", type: .departure, station: "Söö", advertised: "08:01", isAdvertised: false),

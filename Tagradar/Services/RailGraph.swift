@@ -122,17 +122,19 @@ extension RailGraph {
     /// Same stitching as `polyline(through:route:)`, but keeps each leg as its own array instead of
     /// merging them into one line — so a caller can style individual legs differently, e.g. drawing
     /// a cancelled stretch of the journey in red. `via[i]`, when present, lists the stations leg `i`
-    /// passes without stopping; the leg is routed through each of them in turn instead of taking
-    /// the shortest path, which can run down a different line than the train does.
+    /// passes without stopping (`onTrack` gives their place on the network); the leg is rerouted
+    /// through those that are off its shortest path, which can run down a different line than the
+    /// train does.
     static func legs(
         through stops: [(signature: String, coordinate: CLLocationCoordinate2D)],
-        via: [[String]] = [],
+        via: [[String]],
+        onTrack: (String) -> CLLocationCoordinate2D?,
         route: (_ from: String, _ to: String) -> [CLLocationCoordinate2D]?
     ) -> [[CLLocationCoordinate2D]] {
         zip(stops, stops.dropFirst()).enumerated().map { index, pair in
             let (from, to) = pair
             let waypoints = index < via.count ? via[index] : []
-            if let real = path(from: from.signature, via: waypoints, to: to.signature, route: route), !real.isEmpty {
+            if let real = path(from: from.signature, via: waypoints, to: to.signature, onTrack: onTrack, route: route), !real.isEmpty {
                 return real
             } else {
                 return [from.coordinate, to.coordinate]
@@ -140,13 +142,14 @@ extension RailGraph {
         }
     }
 
-    /// `legs(through:via:route:)` for a journey's stop signatures and `TrainJourney.passingPoints`.
-    /// A stop `anchor` has no coordinate for is left out, so the legs on either side of it merge
-    /// into one routed through both legs' passing points.
+    /// `legs(through:via:onTrack:route:)` for a journey's stop signatures and
+    /// `TrainJourney.passingPoints`. A stop `anchor` has no coordinate for is left out, so the legs
+    /// on either side of it merge into one routed through both legs' passing points.
     static func legs(
         stops signatures: [String],
         passingPoints: [[String]],
         anchor: (String) -> CLLocationCoordinate2D?,
+        onTrack: (String) -> CLLocationCoordinate2D?,
         route: (_ from: String, _ to: String) -> [CLLocationCoordinate2D]?
     ) -> [[CLLocationCoordinate2D]] {
         var stops: [(signature: String, coordinate: CLLocationCoordinate2D)] = []
@@ -164,28 +167,71 @@ extension RailGraph {
                 pending += passingPoints[index]
             }
         }
-        return legs(through: stops, via: via, route: route)
+        return legs(through: stops, via: via, onTrack: onTrack, route: route)
     }
 
-    /// `route` from `from` to `to` through each waypoint in order, skipping any it can't reach (one
-    /// the network doesn't know, or one on the same track node as the previous point). Falls back
-    /// to the direct route if the chain doesn't end at `to`.
+    /// How far off a leg's shortest path a passing point has to be before the leg is rerouted
+    /// through it. Closer than this it's on the same line — snapped to the other track, a platform
+    /// or a stub beside it — and routing through it would only add an out-and-back.
+    static let detourThreshold: CLLocationDistance = 1000
+
+    /// The shortest path from `from` to `to`, unless some waypoints lie more than
+    /// `detourThreshold` off it: then the path through those, in order. A train never turns back
+    /// at a station it passes, so a waypoint the chain reverses at (into a stub and straight out
+    /// again) is dropped.
     private static func path(
         from: String,
-        via waypoints: [String],
+        via: [String],
         to: String,
+        onTrack: (String) -> CLLocationCoordinate2D?,
         route: (_ from: String, _ to: String) -> [CLLocationCoordinate2D]?
     ) -> [CLLocationCoordinate2D]? {
-        guard !waypoints.isEmpty else { return route(from, to) }
-        var result: [CLLocationCoordinate2D] = []
-        var current = from
-        for next in waypoints + [to] {
-            guard let segment = route(current, next), !segment.isEmpty else { continue }
-            // Each segment starts on the node the previous one ended on.
-            result.append(contentsOf: result.isEmpty ? segment[...] : segment.dropFirst())
-            current = next
+        guard let direct = route(from, to) else { return nil }
+        var waypoints = via.filter { signature in
+            onTrack(signature).map { distance(from: $0, to: direct) > detourThreshold } ?? false
         }
-        return current == to ? result : route(from, to)
+        while !waypoints.isEmpty {
+            let ends = [from] + waypoints + [to]
+            var segments: [[CLLocationCoordinate2D]] = []
+            for (start, end) in zip(ends, ends.dropFirst()) {
+                guard let segment = route(start, end), segment.count > 1 else { break }
+                segments.append(segment)
+            }
+            // `from` reaches `to`, so a hop that fails has a waypoint off the connected network.
+            if segments.count < ends.count - 1 {
+                waypoints.remove(at: min(segments.count, waypoints.count - 1))
+                continue
+            }
+            let turn = segments.indices.dropLast().first { index in
+                let before = segments[index][segments[index].count - 2], after = segments[index + 1][1]
+                return before.latitude == after.latitude && before.longitude == after.longitude
+            }
+            if let turn {
+                waypoints.remove(at: turn)
+                continue
+            }
+            // Each segment starts on the node the previous one ended on.
+            return segments.dropFirst().reduce(segments[0]) { $0 + $1.dropFirst() }
+        }
+        return direct
+    }
+
+    /// Shortest distance from `point` to the polyline `line`, on a local flat projection around
+    /// `point` — plenty for comparing against `detourThreshold`.
+    private static func distance(from point: CLLocationCoordinate2D, to line: [CLLocationCoordinate2D]) -> CLLocationDistance {
+        let metresPerDegree = 111_320.0
+        let scale = cos(point.latitude * .pi / 180)
+        let projected = line.map {
+            (x: ($0.longitude - point.longitude) * scale * metresPerDegree, y: ($0.latitude - point.latitude) * metresPerDegree)
+        }
+        var nearest = projected.first.map { hypot($0.x, $0.y) } ?? .infinity
+        for (a, b) in zip(projected, projected.dropFirst()) {
+            let dx = b.x - a.x, dy = b.y - a.y
+            let lengthSquared = dx * dx + dy * dy
+            let t = lengthSquared > 0 ? min(1, max(0, -(a.x * dx + a.y * dy) / lengthSquared)) : 0
+            nearest = min(nearest, hypot(a.x + t * dx, a.y + t * dy))
+        }
+        return nearest
     }
 }
 

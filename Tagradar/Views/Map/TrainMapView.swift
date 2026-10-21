@@ -490,16 +490,16 @@ struct TrainMapView: View {
         }
     }
 
-    /// Recomputes `routeLegs` for the currently selected journey: each consecutive stop pair's real
-    /// track shape where the bundled network has it, a straight segment otherwise (see
-    /// `RailGraph.legs(stops:passingPoints:anchor:route:)`). Cheap when nothing changed (an
-    /// unchanged pair hits `RailNetwork`'s cache), but still only called when `routeInputs`
-    /// changes — never from `body`.
+    /// Recomputes `routeLegs` for the selected journey: real track where the bundled network has
+    /// it, a straight segment otherwise (see `RailGraph.legs(stops:passingPoints:anchor:onTrack:route:)`).
+    /// Cheap when nothing changed (an unchanged pair hits `RailNetwork`'s cache), but still only
+    /// called when `routeInputs` changes — never from `body`.
     private func refreshRoute() {
         let inputs = routeInputs
-        let legs = RailGraph.legs(stops: inputs.stopSignatures, passingPoints: inputs.passingPoints, anchor: stopAnchor(for:)) {
-            RailNetwork.shared.route(from: $0, to: $1)
-        }
+        let legs = RailGraph.legs(
+            stops: inputs.stopSignatures, passingPoints: inputs.passingPoints, anchor: stopAnchor(for:),
+            onTrack: RailNetwork.shared.stationCoordinate, route: RailNetwork.shared.route
+        )
         if !legs.isEmpty || !routeLegs.isEmpty {
             routeLegs = legs
         }
