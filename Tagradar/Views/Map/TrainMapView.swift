@@ -243,7 +243,7 @@ struct TrainMapView: View {
     private var routeInputs: RouteInputs {
         RouteInputs(
             stopSignatures: stopSignatures,
-            passingPoints: journeys.cached(selectedKey)?.passingPoints ?? [],
+            passingPoints: journeys.cached(selectedKey)?.routePassingPoints(previous: journeys.previousRun(selectedKey)) ?? [],
             stationsLoaded: stations.isLoaded,
             networkLoaded: RailNetwork.shared.isLoaded
         )

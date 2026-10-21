@@ -140,6 +140,32 @@ struct TrainJourneyTests {
         #expect(journey.passingPoints == [["Åbs", "K", "Sp", "Nsj"], []])
     }
 
+    @Test func legsAheadTakePassingPointsFromThePreviousRun() throws {
+        let previousRows = try [
+            announcement(id: "p1", type: .departure, station: "Lp", advertised: "06:26"),
+            announcement(id: "p2", type: .departure, station: "Lgm", advertised: "06:31", passedAt: "06:31:20", isAdvertised: false),
+            announcement(id: "p3", type: .arrival, station: "Nr", advertised: "06:51"),
+            announcement(id: "p4", type: .departure, station: "Nr", advertised: "06:52"),
+            announcement(id: "p5", type: .departure, station: "K", advertised: "07:18", passedAt: "07:18:30", isAdvertised: false),
+            announcement(id: "p6", type: .arrival, station: "Söö", advertised: "08:00"),
+        ]
+        let todayRows = try [
+            announcement(id: "1", type: .departure, station: "Lp", advertised: "06:26", actual: "06:26"),
+            announcement(id: "2", type: .departure, station: "Kms", advertised: "06:40", passedAt: "06:41:00", isAdvertised: false),
+            announcement(id: "3", type: .arrival, station: "Nr", advertised: "06:51", actual: "06:51"),
+            announcement(id: "4", type: .departure, station: "Nr", advertised: "06:52", actual: "06:54"),
+            // Passed so far on the leg in progress; the previous run has all of it.
+            announcement(id: "5", type: .departure, station: "Åbs", advertised: "06:57", passedAt: "06:58:12", isAdvertised: false),
+            announcement(id: "6", type: .arrival, station: "Söö", advertised: "08:00"),
+        ]
+        let key = try TrainKey(ident: "264", departureDate: #require(todayRows[0].scheduledDepartureDateTime))
+        let previous = TrainJourney(key: key, announcements: previousRows)
+        let today = TrainJourney(key: key, announcements: todayRows)
+        // The finished leg keeps what this run actually passed.
+        #expect(today.routePassingPoints(previous: previous) == [["Kms"], ["K"]])
+        #expect(today.routePassingPoints(previous: nil) == [["Kms"], ["Åbs"]])
+    }
+
     @Test func compositionFallsBackToArrivalRow() throws {
         // SJ 30 at Mdn carries the car order on its arrival row only.
         let rows = try [

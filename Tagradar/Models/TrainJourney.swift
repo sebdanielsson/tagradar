@@ -31,6 +31,22 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
         passingPoints = Self.buildPassingPoints(between: stops, from: announcements)
     }
 
+    /// `passingPoints`, except that a leg the train hasn't finished yet takes them from `previous`
+    /// — an earlier run of the same train — where that run had the same pair of stops, so the map
+    /// follows the right line ahead of the train too. A leg `previous` has none for keeps its own.
+    func routePassingPoints(previous: TrainJourney?) -> [[String]] {
+        guard let previous else { return passingPoints }
+        let leg = { (from: TrainStop, to: TrainStop) in "\(from.signature)|\(to.signature)" }
+        var earlier: [String: [String]] = [:]
+        for (pair, points) in zip(zip(previous.stops, previous.stops.dropFirst()), previous.passingPoints) where !points.isEmpty {
+            earlier[leg(pair.0, pair.1)] = points
+        }
+        return zip(zip(stops, stops.dropFirst()), passingPoints).map { pair, passed in
+            guard !pair.1.hasArrived, let ahead = earlier[leg(pair.0, pair.1)] else { return passed }
+            return ahead
+        }
+    }
+
     // MARK: Derived summary
 
     private var representative: TrainAnnouncement? {

@@ -104,9 +104,11 @@ from the real-world 329.6 km, so a dropped line or a broken contraction can't sh
   the leg through those the network knows that lie more than 1 km off the shortest path. Closer
   ones are on the same line, only snapped to the other track, a platform or a stub, and are
   ignored; a waypoint the route would turn back at is dropped too. Over a full day's data this
-  changes only the Norrköping–Södertälje legs. Trafikverket publishes a passing row only once the
-  train has passed, so a leg is corrected only once the train is past the point where the lines
-  split.
+  changes only legs that really run elsewhere (Norrköping–Södertälje via Katrineholm, Helsingborg–
+  Malmö via Lund, …). Trafikverket publishes a passing row only once the train has passed, so for
+  legs the selected run hasn't finished `MapScreen` fetches the same train number's run the day
+  before (`JourneyStore.loadPreviousRun`) and `TrainJourney.routePassingPoints(previous:)` uses
+  its passing points wherever it had the same pair of stops.
 
 ## Regenerating
 
