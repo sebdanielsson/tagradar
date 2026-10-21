@@ -49,6 +49,9 @@ for sig, v in snapped.items():
     if missing := [end for end in ends if end not in node_index]:
         raise SystemExit(f"{sig}'s link ends {missing} didn't survive contraction — refusing to export")
     links = [[node_index[end], round(math.dist(node, end), 1)] for end in ends]
+    # The app rejects the whole bundle over a link it can't measure, so catch that here.
+    if any(length <= 0 for _, length in links):
+        raise SystemExit(f"{sig} has a link of zero length — refusing to export")
     if links:
         links_out[sig] = links
 

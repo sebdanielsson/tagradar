@@ -64,7 +64,9 @@ if __name__ == "__main__":
     def links_for(node):
         along = nx.single_source_dijkstra_path_length(graph, node, cutoff=link_reach + link_slack, weight="weight")
         own = graph.edges(node, data=True)
-        sections, places = {data["bandel"] for *_, data in own}, {data["pl_namn"] for *_, data in own} - {None}
+        # A track without a section or place name matches nothing, not every other unnamed track.
+        sections = {data["bandel"] for *_, data in own} - {None}
+        places = {data["pl_namn"] for *_, data in own} - {None}
         here = Point(node)
         reached = {}
         for i in edge_tree.query(here.buffer(link_reach)):
