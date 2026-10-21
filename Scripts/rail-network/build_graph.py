@@ -1,4 +1,5 @@
 import glob
+import math
 import os
 import re
 import sqlite3
@@ -105,8 +106,27 @@ def build_graph(lines):
             if g.has_edge(a, b):
                 if g[a][b]["weight"] <= dist:
                     continue
-            g.add_edge(a, b, weight=dist)
+            # Which railway section (`Bandel`) and station or line (`PlNamn`) the track belongs to,
+            # so a station's links (snap_stations.py) can stay on its own tracks.
+            g.add_edge(a, b, weight=dist, bandel=bandel, pl_namn=pl_namn)
     return g
+
+
+def split_edges(graph, splits):
+    """Inserts nodes part-way along straight edges, so something can attach where a track has no
+    vertex of its own. `splits` is `[(a, b, point), ...]` with `point` on edge `a`–`b`; several
+    points on one edge go in in order along it, and a point that's already a node is left alone."""
+    by_edge = {}
+    for a, b, point in splits:
+        a, b, point = tuple(a), tuple(b), tuple(point)
+        if point not in graph and graph.has_edge(a, b):
+            by_edge.setdefault((min(a, b), max(a, b)), set()).add(point)
+    for (a, b), points in by_edge.items():
+        chain = [a, *sorted(points, key=lambda p: math.dist(a, p)), b]
+        attributes = {key: value for key, value in graph[a][b].items() if key != "weight"}
+        graph.remove_edge(a, b)
+        for u, v in zip(chain, chain[1:]):
+            graph.add_edge(u, v, weight=math.dist(u, v), **attributes)
 
 
 if __name__ == "__main__":

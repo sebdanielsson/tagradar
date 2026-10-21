@@ -12,11 +12,11 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
 
     let key: TrainKey
     let stops: [TrainStop]
-    /// One entry per consecutive pair of `stops`: the signatures the train has passed without
-    /// stopping between them, in order. They pin down which line a leg actually takes where the
-    /// track network offers a shorter alternative (Norrköping → Södertälje via Katrineholm, not
-    /// Nyköping). Trafikverket only publishes a passing row once the train has passed, so this
-    /// covers the part of the run already done.
+    /// One entry per consecutive pair of `stops`: the signatures the train passes without stopping
+    /// between them, in order. They pin down which line a leg actually takes where the track
+    /// network offers a shorter alternative (Norrköping → Södertälje via Katrineholm, not
+    /// Nyköping). Trafikverket publishes almost every passing row only once the train has passed,
+    /// so this mostly covers the part of the run already done.
     let passingPoints: [[String]]
     let announcements: [TrainAnnouncement]
 
@@ -236,13 +236,15 @@ extension TrainJourney {
     /// departure and arrival times bracket it, strictly — a passing point timed in the same minute
     /// as a stop could sit on either side of it. Within a leg they're ordered by when the train
     /// actually passed, to the second: several often share an advertised minute, and the API
-    /// doesn't list those in running order. A point with both an arrival and a departure row is
-    /// listed once.
+    /// doesn't list those in running order. The odd row published ahead of the train has no such
+    /// time yet and goes after them, in timetable order. A cancelled row is left out — it marks
+    /// somewhere the train didn't go, e.g. on a diversion — and a point with both an arrival and a
+    /// departure row is listed once.
     static func buildPassingPoints(between stops: [TrainStop], from announcements: [TrainAnnouncement]) -> [[String]] {
         let stopSignatures = Set(stops.map(\.signature))
         let passes = announcements.compactMap { row -> (signature: String, row: TrainAnnouncement)? in
-            guard !row.isPassengerActivity, let signature = row.locationSignature, !stopSignatures.contains(signature)
-            else { return nil }
+            guard !row.isPassengerActivity, !row.isCanceled, let signature = row.locationSignature,
+                  !stopSignatures.contains(signature) else { return nil }
             return (signature, row)
         }
         return zip(stops, stops.dropFirst()).map { from, to in
@@ -251,7 +253,11 @@ extension TrainJourney {
             else { return [] }
             let inLeg = passes
                 .filter { $0.row.advertisedTimeAtLocation.map { $0 > start && $0 < end } ?? false }
-                .sorted { ($0.row.timeAtLocationWithSeconds ?? .distantFuture) < ($1.row.timeAtLocationWithSeconds ?? .distantFuture) }
+                .sorted { lhs, rhs in
+                    let passed = (lhs.row.timeAtLocationWithSeconds ?? .distantFuture, rhs.row.timeAtLocationWithSeconds ?? .distantFuture)
+                    guard passed.0 == passed.1 else { return passed.0 < passed.1 }
+                    return (lhs.row.advertisedTimeAtLocation ?? .distantFuture) < (rhs.row.advertisedTimeAtLocation ?? .distantFuture)
+                }
             var leg: [String] = []
             for pass in inLeg where leg.last != pass.signature {
                 leg.append(pass.signature)

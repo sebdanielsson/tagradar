@@ -58,7 +58,12 @@ final class JourneyStore {
     /// Fetches `previousRun(_:)` once per run. A past run doesn't change, so it's never refreshed;
     /// a failed fetch isn't cached, so the next call retries.
     func loadPreviousRun(_ key: TrainKey) async {
-        guard previousRuns[key.id] == nil,
+        // A run that has already arrived has nothing ahead of it to draw. Its own journey is usually
+        // still loading when it's selected, so this waits for it (sharing that request) rather than
+        // reading the cache.
+        guard previousRuns[key.id] == nil else { return }
+        let journey = try? await load(key)
+        guard journey?.status != .arrived, previousRuns[key.id] == nil,
               let day = SwedishTime.calendar.date(byAdding: .day, value: -1, to: key.departureDate) else { return }
         // Unstructured and shared, like `load(_:)`'s: the caller's task is cancelled whenever the
         // map deselects or rebuilds, which mustn't cancel a fetch a later caller is waiting on.

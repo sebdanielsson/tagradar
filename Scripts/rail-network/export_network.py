@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import pickle
 
@@ -35,6 +36,7 @@ for u, v, data in g.edges(data=True):
     edges_out.append([node_index[u], node_index[v], interior, round(data["weight"], 1)])
 
 stations_out = {}
+links_out = {}
 skipped = 0
 for sig, v in snapped.items():
     node = tuple(v["node"])
@@ -42,8 +44,18 @@ for sig, v in snapped.items():
         skipped += 1
         continue
     stations_out[sig] = node_index[node]
+    # A link is a straight connector, so its length is just the distance across.
+    ends = [tuple(link["point"]) for link in v.get("links", [])]
+    if missing := [end for end in ends if end not in node_index]:
+        raise SystemExit(f"{sig}'s link ends {missing} didn't survive contraction — refusing to export")
+    links = [[node_index[end], round(math.dist(node, end), 1)] for end in ends]
+    # The app rejects the whole bundle over a link it can't measure, so catch that here.
+    if any(length <= 0 for _, length in links):
+        raise SystemExit(f"{sig} has a link of zero length — refusing to export")
+    if links:
+        links_out[sig] = links
 
-print(f"Nodes: {len(nodes_out)}, Edges: {len(edges_out)}, Stations: {len(stations_out)} (skipped {skipped})")
+print(f"Nodes: {len(nodes_out)}, Edges: {len(edges_out)}, Stations: {len(stations_out)} (skipped {skipped}), linked: {len(links_out)}")
 
 # Sanity check against a known real-world rail distance: Stockholm C -> Mora C is ~329.6 km.
 # Runs on the exact graph (and weights) being exported, so a broken contraction or a dropped
@@ -59,7 +71,7 @@ print(f"Sanity check {CHECK_FROM} -> {CHECK_TO}: {km:.1f} km (expected ~{CHECK_K
 if abs(km - CHECK_KM) > 5:
     raise SystemExit(f"Route length {km:.1f} km is off by more than 5 km — refusing to export")
 
-out = {"nodes": nodes_out, "edges": edges_out, "stations": stations_out}
+out = {"nodes": nodes_out, "edges": edges_out, "stations": stations_out, "links": links_out}
 with open("RailNetwork.json", "w", encoding="utf-8") as f:
     json.dump(out, f, separators=(",", ":"))
 

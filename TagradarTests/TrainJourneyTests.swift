@@ -116,6 +116,24 @@ struct TrainJourneyTests {
         #expect(journey.stops.map(\.signature) == ["Cst", "G"])
     }
 
+    @Test func cancelledPassingPointsAreLeftOutAndUnpassedOnesFollowInTimetableOrder() throws {
+        let rows = try [
+            announcement(id: "1", type: .departure, station: "Nr", advertised: "06:52"),
+            announcement(id: "2", type: .departure, station: "K", advertised: "07:18", passedAt: "07:19:02", isAdvertised: false),
+            // Not passed yet, listed out of timetable order: they go after K, by advertised time.
+            announcement(id: "3", type: .departure, station: "Gn", advertised: "07:47", isAdvertised: false),
+            announcement(id: "4", type: .departure, station: "Fle", advertised: "07:28", isAdvertised: false),
+            // Somewhere the train won't go today.
+            announcement(id: "5", type: .departure, station: "Nk", advertised: "07:30", canceled: true, isAdvertised: false),
+            announcement(id: "6", type: .arrival, station: "Söö", advertised: "08:00"),
+        ]
+        let journey = try TrainJourney(
+            key: TrainKey(ident: "264", departureDate: #require(rows[0].scheduledDepartureDateTime)),
+            announcements: rows
+        )
+        #expect(journey.passingPoints == [["K", "Fle", "Gn"]])
+    }
+
     @Test func passingPointsAreGroupedPerLegInRunningOrder() throws {
         let rows = try [
             announcement(id: "1", type: .departure, station: "Nr", advertised: "06:52"),
