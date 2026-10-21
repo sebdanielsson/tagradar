@@ -36,8 +36,8 @@ struct TrainMapView: View {
     /// as of whenever `body` last ran, so `looksDifferent` knows exactly what is on screen.
     @State private var displayedAt = Date.distantPast
     @State private var refreshTask: Task<Void, Never>?
-    /// The selected journey's route, following real track geometry where possible, one leg per
-    /// pair of consecutive stops so `routeOverlay` can colour a cancelled one differently. Computed
+    /// The selected journey's route, following real track geometry where possible, one leg per pair
+    /// of consecutive stops with a coordinate so `routeOverlay` can colour a cancelled one. Computed
     /// once per selection (see `refreshRoute`) rather than on every `body` evaluation — Dijkstra
     /// isn't free, and the route never changes while a train just keeps moving.
     @State private var routeLegs: [RailGraph.Leg] = []

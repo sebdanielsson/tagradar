@@ -2,7 +2,7 @@ import CoreLocation
 
 /// Pure rail network data plus shortest-path search, independent of how it's loaded or cached.
 /// Kept separate from `RailNetwork` so it can be constructed directly from a small synthetic
-/// graph in tests instead of the real ~7k-node bundle.
+/// graph in tests instead of the real ~8k-node bundle.
 struct RailGraph: Sendable {
     struct Edge: Sendable {
         /// Always stored source → destination as laid out by whoever builds the graph;
@@ -232,8 +232,9 @@ extension RailGraph {
     /// so a few metres across a link or along a station's tracks don't count as a turn.
     static let headingWindow: CLLocationDistance = 200
 
-    /// The longest spike to a waypoint's own node — across a link, or into a short stub beside the
-    /// line — that's cut out of the line rather than drawn in and straight back out.
+    /// The longest spike to a waypoint's own node — a single straight step across a link, or into
+    /// a one-edge stub beside the line — that's cut out of the line rather than drawn in and
+    /// straight back out.
     static let maxSpike: CLLocationDistance = 150
 
     /// The shortest path from `from` to `to`, unless some waypoints lie more than
@@ -263,16 +264,18 @@ extension RailGraph {
                 waypoints.remove(at: min(segments.count, waypoints.count - 1))
                 continue
             }
-            if let turn = segments.indices.dropLast().first(where: { turnsBack(segments[$0], segments[$0 + 1]) }) {
-                waypoints.remove(at: turn)
-                continue
-            }
+            // Trimmed before checking headings: a spike longer than half `headingWindow` would
+            // otherwise read as a turn back by itself.
             for index in segments.indices.dropLast() {
                 let into = segments[index], outOf = segments[index + 1]
                 guard into.count > 2, outOf.count > 2, same(into[into.count - 2], outOf[1]), !same(into[into.count - 3], outOf[2]),
                       metres(into[into.count - 1], into[into.count - 2]) <= maxSpike else { continue }
                 segments[index].removeLast()
                 segments[index + 1].removeFirst()
+            }
+            if let turn = segments.indices.dropLast().first(where: { turnsBack(segments[$0], segments[$0 + 1]) }) {
+                waypoints.remove(at: turn)
+                continue
             }
             // Each segment starts on the point the previous one ended on.
             return segments.dropFirst().reduce(segments[0]) { $0 + $1.dropFirst() }
@@ -334,7 +337,7 @@ extension RailGraph {
     }
 }
 
-/// Minimal binary min-heap keyed by priority, just enough for Dijkstra over a ~7k node graph.
+/// Minimal binary min-heap keyed by priority, just enough for Dijkstra over a ~8k node graph.
 struct MinHeap<Element> {
     private var items: [(element: Element, priority: CLLocationDistance)] = []
 

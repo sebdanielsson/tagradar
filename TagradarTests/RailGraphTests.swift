@@ -210,6 +210,8 @@ struct RailGraphTests {
         let into = [RailGraphLinkFixture.a, RailGraphLinkFixture.m, RailGraphLinkFixture.s]
         #expect(coordinates(graph.route(from: "A", to: "S")) == coordinates(into))
         #expect(coordinates(graph.route(from: "S", to: "A")) == coordinates(into.reversed()))
+        // A link that's there but longer than the track loses to the track.
+        #expect(coordinates(graph.route(from: "D", to: "S")) == coordinates([RailGraphLinkFixture.d, RailGraphLinkFixture.s]))
     }
 
     @Test("A link is never a shortcut through the middle of a route")
@@ -219,6 +221,8 @@ struct RailGraphTests {
             RailGraphLinkFixture.s, RailGraphLinkFixture.c,
         ]
         #expect(coordinates(RailGraphLinkFixture.graph.route(from: "A", to: "C")) == coordinates(expected))
+        // From C, the link at S would cut the loop in half if it were taken mid-route.
+        #expect(coordinates(RailGraphLinkFixture.graph.route(from: "C", to: "A")) == coordinates(expected.reversed()))
     }
 
     @Test("A station with no edges is unreachable even though its signature is known")
@@ -370,6 +374,26 @@ struct RailGraphLegsTests {
             route: { routes["\($0)|\($1)"] }
         )
         #expect(result.map { coordinates($0) ?? [] } == [coordinates([a, east, b]) ?? []])
+    }
+
+    @Test("A spike longer than half the heading window is trimmed, not taken for a turn back")
+    func trimsLongSpikeBeforeCheckingHeadings() {
+        // 120 m out at right angles from a line with vertices 89 m either side of where it leaves:
+        // over 200 m either side, the spike alone would read as a reversal.
+        let a = CLLocationCoordinate2D(latitude: 59.0, longitude: 18.0)
+        let b = CLLocationCoordinate2D(latitude: 59.2, longitude: 18.0)
+        let before = CLLocationCoordinate2D(latitude: 59.0992, longitude: 18.1)
+        let east = CLLocationCoordinate2D(latitude: 59.1, longitude: 18.1)
+        let after = CLLocationCoordinate2D(latitude: 59.1008, longitude: 18.1)
+        let link = CLLocationCoordinate2D(latitude: 59.1, longitude: 18.1021)
+        let routes: [String: [CLLocationCoordinate2D]] = [
+            "A|B": [a, b], "A|W": [a, before, east, link], "W|B": [link, east, after, b],
+        ]
+        let result = RailGraph.legs(
+            through: [("A", a), ("B", b)], via: [["W"]], onTrack: { $0 == "W" ? link : nil },
+            route: { routes["\($0)|\($1)"] }
+        )
+        #expect(result.map { coordinates($0) ?? [] } == [coordinates([a, before, east, after, b]) ?? []])
     }
 
     @Test("A passing point the route reverses at is dropped even when it leaves on another track")

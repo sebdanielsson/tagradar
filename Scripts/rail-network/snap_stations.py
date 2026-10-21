@@ -48,9 +48,12 @@ if __name__ == "__main__":
     # (Nödinge's is 2.4 km away). So each station also gets a straight "link" to every other track
     # within `link_reach` that it can only reach the long way round along the track (more than
     # `link_slack` further than straight across); the app lets a route start or end over one, so it
-    # can arrive at the station on whichever track it's on. A link ends at the nearest point of its
-    # track — a straight run in a tunnel can have no vertex for hundreds of metres, so that point is
-    # usually part-way along an edge, which `contract_graph.py` splits there (`split_edges`).
+    # can arrive at the station on whichever track it's on. Only the station's own tracks count —
+    # the same railway section (`Bandel`) or place (`PlNamn`) as a track at its node — or Stockholm
+    # C would link into the Citybanan tunnel next door and send every train south through it. A
+    # link ends at the nearest point of its track — a straight run in a tunnel can have no vertex
+    # for hundreds of metres, so that point is usually part-way along an edge, which
+    # `contract_graph.py` splits there (`split_edges`).
     link_reach = 100.0  # meters
     link_slack = 50.0  # meters
     edge_list = list(graph.edges)
@@ -58,10 +61,14 @@ if __name__ == "__main__":
 
     def links_for(node):
         along = nx.single_source_dijkstra_path_length(graph, node, cutoff=link_reach + link_slack, weight="weight")
+        own = graph.edges(node, data=True)
+        sections, places = {data["bandel"] for *_, data in own}, {data["pl_namn"] for *_, data in own}
         here = Point(node)
         reached = {}
         for i in edge_tree.query(here.buffer(link_reach)):
             a, b = edge_list[int(i)]
+            if graph[a][b]["bandel"] not in sections and graph[a][b]["pl_namn"] not in places:
+                continue
             segment = LineString((a, b))
             nearest = segment.interpolate(segment.project(here))
             point = snap(nearest.x, nearest.y)
@@ -69,12 +76,24 @@ if __name__ == "__main__":
             by_track = min(along.get(a, math.inf) + math.dist(a, point), along.get(b, math.inf) + math.dist(b, point))
             if across <= link_reach and by_track > across + link_slack:
                 reached[(a, b)] = (point, across)
-        # Qualifying edges that touch are one run of track, which gets one link: its nearest point.
-        links = []
-        for track in nx.connected_components(nx.Graph(list(reached))):
-            (a, b), (point, _) = min(((edge, v) for edge, v in reached.items() if edge[0] in track), key=lambda item: item[1][1])
-            links.append({"edge": [list(a), list(b)], "point": list(point)})
-        return links
+        # Qualifying edges joined end to end are one run of track, which gets one link: its nearest
+        # point. Only plain vertices join them, not switches — tracks a crossover connects inside
+        # the circle are still separate tracks, each possibly the one a train arrives on.
+        runs = nx.Graph()
+        runs.add_nodes_from(reached)
+        for edge in reached:
+            for end in edge:
+                if graph.degree[end] == 2:
+                    for other in graph.edges(end):
+                        key = other if other in reached else other[::-1]
+                        if key != edge and key in reached:
+                            runs.add_edge(edge, key)
+        # Two runs that meet at a switch can both be nearest at it: one link there is enough.
+        links = {}
+        for run in nx.connected_components(runs):
+            a, b = min(run, key=lambda edge: reached[edge][1])
+            links.setdefault(reached[(a, b)][0], {"edge": [list(a), list(b)], "point": list(reached[(a, b)][0])})
+        return sorted(links.values(), key=lambda link: link["point"])
 
     def nearest_node(x, y, max_dist=max_snap):
         cx, cy = int(x // cell_size), int(y // cell_size)

@@ -12,11 +12,11 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
 
     let key: TrainKey
     let stops: [TrainStop]
-    /// One entry per consecutive pair of `stops`: the signatures the train has passed without
-    /// stopping between them, in order. They pin down which line a leg actually takes where the
-    /// track network offers a shorter alternative (Norrköping → Södertälje via Katrineholm, not
-    /// Nyköping). Trafikverket only publishes a passing row once the train has passed, so this
-    /// covers the part of the run already done.
+    /// One entry per consecutive pair of `stops`: the signatures the train passes without stopping
+    /// between them, in order. They pin down which line a leg actually takes where the track
+    /// network offers a shorter alternative (Norrköping → Södertälje via Katrineholm, not
+    /// Nyköping). Trafikverket publishes almost every passing row only once the train has passed,
+    /// so this mostly covers the part of the run already done.
     let passingPoints: [[String]]
     let announcements: [TrainAnnouncement]
 

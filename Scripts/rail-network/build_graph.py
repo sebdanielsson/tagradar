@@ -106,7 +106,9 @@ def build_graph(lines):
             if g.has_edge(a, b):
                 if g[a][b]["weight"] <= dist:
                     continue
-            g.add_edge(a, b, weight=dist)
+            # Which railway section (`Bandel`) and station or line (`PlNamn`) the track belongs to,
+            # so a station's links (snap_stations.py) can stay on its own tracks.
+            g.add_edge(a, b, weight=dist, bandel=bandel, pl_namn=pl_namn)
     return g
 
 
@@ -121,9 +123,10 @@ def split_edges(graph, splits):
             by_edge.setdefault((min(a, b), max(a, b)), set()).add(point)
     for (a, b), points in by_edge.items():
         chain = [a, *sorted(points, key=lambda p: math.dist(a, p)), b]
+        attributes = {key: value for key, value in graph[a][b].items() if key != "weight"}
         graph.remove_edge(a, b)
         for u, v in zip(chain, chain[1:]):
-            graph.add_edge(u, v, weight=math.dist(u, v))
+            graph.add_edge(u, v, weight=math.dist(u, v), **attributes)
 
 
 if __name__ == "__main__":

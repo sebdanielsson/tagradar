@@ -6,7 +6,7 @@ import os
 /// Railway Database (NJDB, CC0), so routes can be drawn following actual track geometry instead
 /// of straight lines between stations. Junctions are graph nodes; the long straight-ish runs
 /// between them are collapsed into single edges carrying their simplified shape, so the whole
-/// network is ~7k nodes/9k edges instead of ~400k raw survey points. See `docs/rail-network.md`
+/// network is ~8k nodes/10k edges instead of ~400k raw survey points. See `docs/rail-network.md`
 /// for how `RailNetwork.json` is generated from the NJDB GeoPackage.
 ///
 /// Owns loading and caching; the graph data structure and Dijkstra search themselves live in

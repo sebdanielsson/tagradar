@@ -46,7 +46,9 @@ for sig, v in snapped.items():
     stations_out[sig] = node_index[node]
     # A link is a straight connector, so its length is just the distance across.
     ends = [tuple(link["point"]) for link in v.get("links", [])]
-    links = [[node_index[end], round(math.dist(node, end), 1)] for end in ends if end in node_index]
+    if missing := [end for end in ends if end not in node_index]:
+        raise SystemExit(f"{sig}'s link ends {missing} didn't survive contraction — refusing to export")
+    links = [[node_index[end], round(math.dist(node, end), 1)] for end in ends]
     if links:
         links_out[sig] = links
 

@@ -71,17 +71,19 @@ Two inputs have to be in place first:
    A station is one node on one track, but at a multi-track station the shortest path to a node
    on the far track runs on to the next crossover and back (2.4 km at Nödinge, 0.9 km at Arlanda
    C). So each station also gets *links*: straight connectors to every other track within 100 m
-   that it can only reach more than 50 m the long way round along the track, ending at that
-   track's nearest point (usually part-way along an edge, which step 3 splits there). 465
-   stations get 902 links.
+   that's more than 50 m further along the track than straight across, ending at that
+   track's nearest point (usually part-way along an edge, which step 3 splits there). Only the
+   station's own tracks count — the same `Bandel` or `PlNamn` as a track at its node — so
+   Stockholm C doesn't link into the Citybanan tunnel next door, and tracks a switch joins inside
+   the 100 m are still separate tracks. 464 stations get 1,064 links.
 3. **`contract_graph.py`** — the raw graph has ~400k nodes, almost all of them degree-2 points
    that just sit along a straight-ish run between real junctions. It collapses every such chain
    into a single edge carrying the full sub-polyline, *pinning* every snapped station and link
    end as a kept node first (after splitting the edges link ends fall on) so none disappears into
    a collapsed chain. Then simplifies each chain's polyline with Douglas-Peucker (15m tolerance).
-   Result: 7,741 nodes / 10,038 edges for the whole country.
+   Result: 7,796 nodes / 10,095 edges for the whole country.
 4. **`export_network.py`** — converts back to WGS84, rounds to 5 decimals (~1m), and writes the
-   final `RailNetwork.json` (796KB): `nodes` (`[lat, lon]` per graph node), `edges` (one
+   final `RailNetwork.json` (800KB): `nodes` (`[lat, lon]` per graph node), `edges` (one
    `[a, b, interior, length]` per contracted chain — node indices, the simplified interior
    points, and the exact pre-simplification track length in metres so the app never has to
    measure polylines itself), `stations` (signature → node index) and `links` (signature →
@@ -113,12 +115,12 @@ from the real-world 329.6 km, so a dropped line or a broken contraction can't sh
   rows sharing an advertised minute aren't listed in running order; cancelled rows are left out),
   and `RailGraph.legs` reroutes the leg through those the network knows that lie more than 1 km
   off the shortest path. Closer ones are on the same line, only snapped to the other track, a
-  platform or a stub, and are ignored. A waypoint the route turns back at — its heading over 200 m
-  either side differs by more than 90°, even when it leaves on a different track than it came in
-  on — is dropped too, and a spike of up to 150 m out to a waypoint's own node is cut from the
-  line. Over a full day's data this
+  platform or a stub, and are ignored. A straight spike of up to 150 m out to a waypoint's own
+  node (across a link, or a single-edge stub) is cut from the line, and a waypoint the route
+  still turns back at — its heading over 200 m either side differs by more than 90°, even when
+  it leaves on a different track than it came in on — is dropped. Over a full day's data this
   changes only legs that really run elsewhere (Norrköping–Södertälje via Katrineholm, Helsingborg–
-  Malmö via Lund, …). Trafikverket publishes a passing row only once the train has passed, so for
+  Malmö via Lund, …). Trafikverket publishes almost every passing row only once the train has passed, so for
   legs the selected run hasn't finished `MapScreen` fetches the same train number's run the day
   before (`JourneyStore.loadPreviousRun`) and `TrainJourney.routePassingPoints(previous:)` uses
   its passing points wherever it had the same pair of stops.
