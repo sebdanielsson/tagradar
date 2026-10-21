@@ -1,4 +1,5 @@
 import glob
+import math
 import os
 import re
 import sqlite3
@@ -107,6 +108,22 @@ def build_graph(lines):
                     continue
             g.add_edge(a, b, weight=dist)
     return g
+
+
+def split_edges(graph, splits):
+    """Inserts nodes part-way along straight edges, so something can attach where a track has no
+    vertex of its own. `splits` is `[(a, b, point), ...]` with `point` on edge `a`–`b`; several
+    points on one edge go in in order along it, and a point that's already a node is left alone."""
+    by_edge = {}
+    for a, b, point in splits:
+        a, b, point = tuple(a), tuple(b), tuple(point)
+        if point not in graph and graph.has_edge(a, b):
+            by_edge.setdefault((min(a, b), max(a, b)), set()).add(point)
+    for (a, b), points in by_edge.items():
+        chain = [a, *sorted(points, key=lambda p: math.dist(a, p)), b]
+        graph.remove_edge(a, b)
+        for u, v in zip(chain, chain[1:]):
+            graph.add_edge(u, v, weight=math.dist(u, v))
 
 
 if __name__ == "__main__":

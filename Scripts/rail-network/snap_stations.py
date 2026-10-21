@@ -1,8 +1,11 @@
 import json
 import math
 
+import networkx as nx
 import pyproj
-from build_graph import load_lines, build_graph
+from build_graph import build_graph, load_lines, snap
+from shapely.geometry import LineString, Point
+from shapely.strtree import STRtree
 
 transformer = pyproj.Transformer.from_crs("EPSG:4326", "EPSG:3006", always_xy=True)
 
@@ -40,6 +43,39 @@ if __name__ == "__main__":
         cx, cy = int(node[0] // cell_size), int(node[1] // cell_size)
         grid[(cx, cy)].append(node)
 
+    # A station is a single node on one track, but a multi-track station's trains use the others
+    # too, and the shortest path to a node on the wrong one runs on to the next crossover and back
+    # (Nödinge's is 2.4 km away). So each station also gets a straight "link" to every other track
+    # within `link_reach` that it can only reach the long way round along the track (more than
+    # `link_slack` further than straight across); the app lets a route start or end over one, so it
+    # can arrive at the station on whichever track it's on. A link ends at the nearest point of its
+    # track — a straight run in a tunnel can have no vertex for hundreds of metres, so that point is
+    # usually part-way along an edge, which `contract_graph.py` splits there (`split_edges`).
+    link_reach = 100.0  # meters
+    link_slack = 50.0  # meters
+    edge_list = list(graph.edges)
+    edge_tree = STRtree([LineString(edge) for edge in edge_list])
+
+    def links_for(node):
+        along = nx.single_source_dijkstra_path_length(graph, node, cutoff=link_reach + link_slack, weight="weight")
+        here = Point(node)
+        reached = {}
+        for i in edge_tree.query(here.buffer(link_reach)):
+            a, b = edge_list[int(i)]
+            segment = LineString((a, b))
+            nearest = segment.interpolate(segment.project(here))
+            point = snap(nearest.x, nearest.y)
+            across = math.dist(node, point)
+            by_track = min(along.get(a, math.inf) + math.dist(a, point), along.get(b, math.inf) + math.dist(b, point))
+            if across <= link_reach and by_track > across + link_slack:
+                reached[(a, b)] = (point, across)
+        # Qualifying edges that touch are one run of track, which gets one link: its nearest point.
+        links = []
+        for track in nx.connected_components(nx.Graph(list(reached))):
+            (a, b), (point, _) = min(((edge, v) for edge, v in reached.items() if edge[0] in track), key=lambda item: item[1][1])
+            links.append({"edge": [list(a), list(b)], "point": list(point)})
+        return links
+
     def nearest_node(x, y, max_dist=max_snap):
         cx, cy = int(x // cell_size), int(y // cell_size)
         best, best_d = None, max_dist
@@ -64,7 +100,9 @@ if __name__ == "__main__":
         if node is None:
             unmatched.append((st["LocationSignature"], f"no node within {max_snap:.0f}m"))
             continue
-        snapped[st["LocationSignature"]] = {"node": node, "dist": round(dist, 1), "name": st["AdvertisedLocationName"]}
+        snapped[st["LocationSignature"]] = {
+            "node": node, "dist": round(dist, 1), "name": st["AdvertisedLocationName"], "links": links_for(node)
+        }
 
     print(f"Snapped {len(snapped)} / {len(stations)} stations")
     print(f"Unmatched: {len(unmatched)}")
@@ -76,5 +114,14 @@ if __name__ == "__main__":
         dists[len(dists) // 2], dists[int(len(dists) * 0.9)], dists[int(len(dists) * 0.99)], dists[-1]
     ))
 
+    linked = [len(v["links"]) for v in snapped.values() if v["links"]]
+    print(f"Linked {len(linked)} stations to {sum(linked)} other tracks (at most {max(linked, default=0)} at one station)")
+
     with open("snapped_stations.json", "w", encoding="utf-8") as f:
-        json.dump({sig: {"node": list(v["node"]), "dist": v["dist"], "name": v["name"]} for sig, v in snapped.items()}, f)
+        json.dump(
+            {
+                sig: {"node": list(v["node"]), "dist": v["dist"], "name": v["name"], "links": v["links"]}
+                for sig, v in snapped.items()
+            },
+            f,
+        )

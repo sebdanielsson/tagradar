@@ -67,9 +67,10 @@ struct MapScreen: View {
         }
         // Keyed on the layout too: the framing depends on it, and a change mid-wait should start over.
         .task(id: [scenePhase == .active, isRegular]) { await centerOnUserAtLaunch() }
-        // The route drawn ahead of the selected train follows its previous run's passing points.
+        // The route drawn ahead of the selected train follows its previous run's passing points;
+        // a run that has already arrived has nothing ahead of it.
         .task(id: mapState.selectedKey) {
-            if let key = mapState.selectedKey {
+            if let key = mapState.selectedKey, journeys.cached(key)?.status != .arrived {
                 await journeys.loadPreviousRun(key)
             }
         }

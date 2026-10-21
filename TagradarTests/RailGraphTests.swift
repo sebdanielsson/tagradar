@@ -111,6 +111,47 @@ enum RailGraphSpurFixture {
     )
 }
 
+/// Two parallel lines joined only far to the north, `A–M–B` and `C–S–D`, with station `S` linked
+/// straight across to `M` on the other line, as a two-track station is:
+///
+/// ```
+///   B ── D
+///   |    |
+///   M ~~ S
+///   |    |
+///   A    C
+/// ```
+enum RailGraphLinkFixture {
+    static let a = CLLocationCoordinate2D(latitude: 59.0, longitude: 18.0)
+    static let m = CLLocationCoordinate2D(latitude: 59.1, longitude: 18.0)
+    static let b = CLLocationCoordinate2D(latitude: 59.2, longitude: 18.0)
+    static let c = CLLocationCoordinate2D(latitude: 59.0, longitude: 18.001)
+    static let s = CLLocationCoordinate2D(latitude: 59.1, longitude: 18.001)
+    static let d = CLLocationCoordinate2D(latitude: 59.2, longitude: 18.001)
+
+    /// Node indices: 0=A, 1=M, 2=B, 3=C, 4=S, 5=D.
+    static let graph = RailGraph(
+        nodeCoordinates: [a, m, b, c, s, d],
+        edges: [
+            RailGraph.Edge(points: [a, m], length: 11100),
+            RailGraph.Edge(points: [m, b], length: 11100),
+            RailGraph.Edge(points: [c, s], length: 11100),
+            RailGraph.Edge(points: [s, d], length: 11100),
+            RailGraph.Edge(points: [b, d], length: 60),
+        ],
+        adjacency: [
+            [RailGraph.Adjacency(to: 1, edgeIndex: 0, forward: true)],
+            [RailGraph.Adjacency(to: 0, edgeIndex: 0, forward: false), RailGraph.Adjacency(to: 2, edgeIndex: 1, forward: true)],
+            [RailGraph.Adjacency(to: 1, edgeIndex: 1, forward: false), RailGraph.Adjacency(to: 5, edgeIndex: 4, forward: true)],
+            [RailGraph.Adjacency(to: 4, edgeIndex: 2, forward: true)],
+            [RailGraph.Adjacency(to: 3, edgeIndex: 2, forward: false), RailGraph.Adjacency(to: 5, edgeIndex: 3, forward: true)],
+            [RailGraph.Adjacency(to: 4, edgeIndex: 3, forward: false), RailGraph.Adjacency(to: 2, edgeIndex: 4, forward: false)],
+        ],
+        stationNode: ["A": 0, "B": 2, "C": 3, "S": 4, "D": 5],
+        links: [4: [RailGraph.Link(to: 1, length: 60)]]
+    )
+}
+
 private func coordinates(_ route: [CLLocationCoordinate2D]?) -> [[Double]]? {
     route?.map { [$0.latitude, $0.longitude] }
 }
@@ -161,6 +202,23 @@ struct RailGraphTests {
     @Test("The same station as both ends has no route")
     func sameStationReturnsNil() {
         #expect(RailGraphFixture.graph.route(from: "A", to: "A") == nil)
+    }
+
+    @Test("A route can arrive at a station, or leave it, over the station's link to another track")
+    func routesOverLinksAtEitherEnd() {
+        let graph = RailGraphLinkFixture.graph
+        let into = [RailGraphLinkFixture.a, RailGraphLinkFixture.m, RailGraphLinkFixture.s]
+        #expect(coordinates(graph.route(from: "A", to: "S")) == coordinates(into))
+        #expect(coordinates(graph.route(from: "S", to: "A")) == coordinates(into.reversed()))
+    }
+
+    @Test("A link is never a shortcut through the middle of a route")
+    func linksAreNotShortcuts() {
+        let expected = [
+            RailGraphLinkFixture.a, RailGraphLinkFixture.m, RailGraphLinkFixture.b, RailGraphLinkFixture.d,
+            RailGraphLinkFixture.s, RailGraphLinkFixture.c,
+        ]
+        #expect(coordinates(RailGraphLinkFixture.graph.route(from: "A", to: "C")) == coordinates(expected))
     }
 
     @Test("A station with no edges is unreachable even though its signature is known")
@@ -275,11 +333,14 @@ struct RailGraphLegsTests {
         let result = RailGraph.legs(
             stops: ["A", "Z", "B", "C"], passingPoints: [[], ["J"], []], anchor: { anchors[$0] },
             onTrack: RailGraphFixture.graph.stationCoordinate, route: RailGraphFixture.graph.route
-        ).map { coordinates($0) ?? [] }
-        #expect(result == [
+        )
+        #expect(result.map { coordinates($0.coordinates) ?? [] } == [
             coordinates([RailGraphFixture.a, RailGraphFixture.j, RailGraphFixture.b]) ?? [],
             coordinates([RailGraphFixture.b, RailGraphFixture.c]) ?? [],
         ])
+        // Indices into the stop list, so the merged leg spans the stop it skips.
+        #expect(result.map(\.from) == [0, 2])
+        #expect(result.map(\.to) == [2, 3])
     }
 
     @Test("A passing point snapped beside the line doesn't pull the route out to it")
@@ -294,6 +355,39 @@ struct RailGraphLegsTests {
         let stops: [Stop] = [("A", RailGraphSpurFixture.a), ("B", RailGraphSpurFixture.b)]
         let direct = coordinates([RailGraphSpurFixture.a, RailGraphSpurFixture.x, RailGraphSpurFixture.b]) ?? []
         #expect(legs(stops, via: [["F"]], graph: RailGraphSpurFixture.graph) == [direct])
+    }
+
+    @Test("A passing point just off the line across a link is passed without a spike out to it")
+    func trimsSpikeToPassingPoint() {
+        // A detour line east of the direct one, with the passing point's node 50 m beside it.
+        let a = CLLocationCoordinate2D(latitude: 59.0, longitude: 18.0)
+        let b = CLLocationCoordinate2D(latitude: 59.2, longitude: 18.0)
+        let east = CLLocationCoordinate2D(latitude: 59.1, longitude: 18.1)
+        let link = CLLocationCoordinate2D(latitude: 59.1, longitude: 18.1009)
+        let routes: [String: [CLLocationCoordinate2D]] = ["A|B": [a, b], "A|W": [a, east, link], "W|B": [link, east, b]]
+        let result = RailGraph.legs(
+            through: [("A", a), ("B", b)], via: [["W"]], onTrack: { $0 == "W" ? link : nil },
+            route: { routes["\($0)|\($1)"] }
+        )
+        #expect(result.map { coordinates($0) ?? [] } == [coordinates([a, east, b]) ?? []])
+    }
+
+    @Test("A passing point the route reverses at is dropped even when it leaves on another track")
+    func dropsReversalAcrossParallelTracks() {
+        // In along one track to the far point, back out along a parallel one 10 m away.
+        let a = CLLocationCoordinate2D(latitude: 59.0, longitude: 18.0)
+        let b = CLLocationCoordinate2D(latitude: 59.2, longitude: 18.0)
+        let junction = CLLocationCoordinate2D(latitude: 59.1, longitude: 18.0)
+        let far = CLLocationCoordinate2D(latitude: 59.1, longitude: 18.05)
+        let back = CLLocationCoordinate2D(latitude: 59.1001, longitude: 18.01)
+        let routes: [String: [CLLocationCoordinate2D]] = [
+            "A|B": [a, junction, b], "A|W": [a, junction, far], "W|B": [far, back, junction, b],
+        ]
+        let result = RailGraph.legs(
+            through: [("A", a), ("B", b)], via: [["W"]], onTrack: { $0 == "W" ? far : nil },
+            route: { routes["\($0)|\($1)"] }
+        )
+        #expect(result.map { coordinates($0) ?? [] } == [coordinates([a, junction, b]) ?? []])
     }
 
     @Test("Passing points the network can't route to are skipped")

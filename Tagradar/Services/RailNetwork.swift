@@ -125,7 +125,22 @@ final class RailNetwork {
         for (signature, node) in raw.stations where !nodes.indices.contains(node) {
             throw RailNetworkError.invalidBundle("station \(signature) references a node outside 0..<\(nodes.count)")
         }
-        return RailGraph(nodeCoordinates: nodes, edges: edges, adjacency: adjacency, stationNode: raw.stations)
+        var links: [Int: [RailGraph.Link]] = [:]
+        for (signature, rawLinks) in raw.links ?? [:] {
+            guard let node = raw.stations[signature] else {
+                throw RailNetworkError.invalidBundle("links for \(signature), which isn't a station")
+            }
+            for link in rawLinks {
+                guard nodes.indices.contains(link.to) else {
+                    throw RailNetworkError.invalidBundle("a link of \(signature) references a node outside 0..<\(nodes.count)")
+                }
+                guard link.length > 0 else {
+                    throw RailNetworkError.invalidBundle("a link of \(signature) has a non-positive length")
+                }
+                links[node, default: []].append(RailGraph.Link(to: link.to, length: link.length))
+            }
+        }
+        return RailGraph(nodeCoordinates: nodes, edges: edges, adjacency: adjacency, stationNode: raw.stations, links: links)
     }
 
     private nonisolated static func coordinate(_ pair: [Double]) throws -> CLLocationCoordinate2D {
@@ -144,6 +159,19 @@ private struct RawNetwork: Decodable {
     let nodes: [[Double]]
     let edges: [RawEdge]
     let stations: [String: Int]
+    /// Station signature → `[node, length]` per link (see `RailGraph.Link`).
+    let links: [String: [RawLink]]?
+}
+
+private struct RawLink: Decodable {
+    let to: Int
+    let length: Double
+
+    init(from decoder: any Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        to = try container.decode(Int.self)
+        length = try container.decode(Double.self)
+    }
 }
 
 private struct RawEdge: Decodable {

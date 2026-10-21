@@ -36,12 +36,11 @@ struct TrainMapView: View {
     /// as of whenever `body` last ran, so `looksDifferent` knows exactly what is on screen.
     @State private var displayedAt = Date.distantPast
     @State private var refreshTask: Task<Void, Never>?
-    /// The selected journey's route, following real track geometry where possible, one entry per
-    /// leg between consecutive stops so `routeOverlay` can colour a cancelled leg differently.
-    /// Computed once per selection (see `refreshRoute`) rather than on every `body` evaluation —
-    /// Dijkstra over the rail network isn't free, and the route never changes while a train just
-    /// keeps moving.
-    @State private var routeLegs: [[CLLocationCoordinate2D]] = []
+    /// The selected journey's route, following real track geometry where possible, one leg per
+    /// pair of consecutive stops so `routeOverlay` can colour a cancelled one differently. Computed
+    /// once per selection (see `refreshRoute`) rather than on every `body` evaluation — Dijkstra
+    /// isn't free, and the route never changes while a train just keeps moving.
+    @State private var routeLegs: [RailGraph.Leg] = []
     /// The ambient station pins actually handed to the map, resolved outside `body` for the same
     /// reason as `displayedTrains`: `body` re-runs several times a second while positions stream,
     /// and a nationwide `ForEach` over the whole directory would rebuild ~700 annotations — and
@@ -409,14 +408,15 @@ struct TrainMapView: View {
         let isCanceled: Bool
     }
 
-    /// Pairs `routeLegs`' geometry with each leg's two stops to decide whether it's cancelled — a
-    /// leg is skipped when the train doesn't depart the first stop, or doesn't arrive at the
-    /// second, wherever `journey`'s cancellation lands (fully or partly cancelled runs alike).
+    /// Looks up each of `routeLegs`' stops to decide whether it's cancelled — a leg is skipped when
+    /// the train doesn't depart its first stop, or doesn't arrive at its last, wherever `journey`'s
+    /// cancellation lands (fully or partly cancelled runs alike).
     private func coloredLegs(for journey: TrainJourney) -> [ColoredLeg] {
-        zip(zip(journey.stops, journey.stops.dropFirst()), routeLegs).enumerated().map { index, pair in
-            let ((from, to), coordinates) = pair
-            let isCanceled = (from.departure?.isCanceled ?? false) || (to.arrival?.isCanceled ?? false)
-            return ColoredLeg(id: index, coordinates: coordinates, isCanceled: isCanceled)
+        let stops = journey.stops
+        return routeLegs.enumerated().compactMap { index, leg in
+            guard leg.to < stops.count else { return nil } // `routeLegs` catches up with new stops a moment later
+            let isCanceled = (stops[leg.from].departure?.isCanceled ?? false) || (stops[leg.to].arrival?.isCanceled ?? false)
+            return ColoredLeg(id: index, coordinates: leg.coordinates, isCanceled: isCanceled)
         }
     }
 

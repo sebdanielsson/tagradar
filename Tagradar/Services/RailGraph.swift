@@ -18,10 +18,33 @@ struct RailGraph: Sendable {
         let forward: Bool
     }
 
+    /// A straight connector from a station's node to another of its tracks (see
+    /// `snap_stations.py`). A route may only start or end over one: that lets it arrive at a
+    /// multi-track station on whichever track it's on, instead of running on to a crossover and
+    /// back to the one track the station's node is on, without links turning into shortcuts
+    /// between lines anywhere else.
+    struct Link: Sendable {
+        let to: Int
+        let length: CLLocationDistance
+    }
+
     let nodeCoordinates: [CLLocationCoordinate2D]
     let edges: [Edge]
     let adjacency: [[Adjacency]]
     let stationNode: [String: Int]
+    /// Each station node's links.
+    let links: [Int: [Link]]
+
+    init(
+        nodeCoordinates: [CLLocationCoordinate2D], edges: [Edge], adjacency: [[Adjacency]], stationNode: [String: Int],
+        links: [Int: [Link]] = [:]
+    ) {
+        self.nodeCoordinates = nodeCoordinates
+        self.edges = edges
+        self.adjacency = adjacency
+        self.stationNode = stationNode
+        self.links = links
+    }
 
     /// Where a station sits on the track: the graph node it was snapped to, which is where every
     /// route through it starts and ends. `nil` for a signature the network doesn't know.
@@ -38,17 +61,25 @@ struct RailGraph: Sendable {
 
     /// Plain Dijkstra with flat, node-indexed arrays for its working state — no hashing for a graph
     /// this small — so the cold-cache worst case (a sparse-stop express flooding most of the
-    /// network) stays well under a frame on the main actor.
+    /// network) stays well under a frame on the main actor. `start`'s links are only taken as the
+    /// first step and `goal`'s only as the last.
     private func shortestPath(from start: Int, to goal: Int) -> [CLLocationCoordinate2D]? {
         let count = nodeCoordinates.count
         var distance = [CLLocationDistance](repeating: .infinity, count: count)
         var previousNode = [Int](repeating: -1, count: count)
+        // `nil` with a `previousNode` set: reached over a link.
         var previousAdjacency = [Adjacency?](repeating: nil, count: count)
         var visited = [Bool](repeating: false, count: count)
         var heap = MinHeap<Int>()
 
         distance[start] = 0
         heap.insert(start, priority: 0)
+        for link in links[start] ?? [] where link.length < distance[link.to] {
+            distance[link.to] = link.length
+            previousNode[link.to] = start
+            heap.insert(link.to, priority: link.length)
+        }
+        let intoGoal = Dictionary((links[goal] ?? []).map { ($0.to, $0.length) }, uniquingKeysWith: min)
 
         while let node = heap.popMin() {
             guard !visited[node] else { continue }
@@ -57,6 +88,12 @@ struct RailGraph: Sendable {
                 break
             }
             let base = distance[node]
+            if let length = intoGoal[node], base + length < distance[goal] {
+                distance[goal] = base + length
+                previousNode[goal] = node
+                previousAdjacency[goal] = nil
+                heap.insert(goal, priority: base + length)
+            }
             for step in adjacency[node] where !visited[step.to] {
                 let candidate = base + edges[step.edgeIndex].length
                 if candidate < distance[step.to] {
@@ -69,21 +106,26 @@ struct RailGraph: Sendable {
         }
         guard distance[goal] < .infinity else { return nil }
 
-        // Walk the predecessor chain back to `start`, then replay each step's edge in the
-        // direction it was actually traversed to retrace the route forward.
-        var steps: [Adjacency] = []
+        // Walk the predecessor chain back to `start`, then replay each step forward: an edge in the
+        // direction it was actually traversed, a link as a straight hop.
+        var steps: [(to: Int, by: Adjacency?)] = []
         var current = goal
-        while current != start, let step = previousAdjacency[current] {
-            steps.append(step)
-            current = previousNode[current]
+        while current != start {
+            let previous = previousNode[current]
+            guard previous >= 0 else { return nil }
+            steps.append((current, previousAdjacency[current]))
+            current = previous
         }
-        guard current == start else { return nil }
         steps.reverse()
 
         var result = [nodeCoordinates[start]]
         for step in steps {
-            let points = edges[step.edgeIndex].points
-            if step.forward {
+            guard let edge = step.by else {
+                result.append(nodeCoordinates[step.to])
+                continue
+            }
+            let points = edges[edge.edgeIndex].points
+            if edge.forward {
                 result.append(contentsOf: points.dropFirst())
             } else {
                 result.append(contentsOf: points.dropLast().reversed())
@@ -142,6 +184,14 @@ extension RailGraph {
         }
     }
 
+    /// One leg of a journey's route: the stops it runs between, by index into the journey's stops,
+    /// and its line.
+    struct Leg {
+        let from: Int
+        let to: Int
+        let coordinates: [CLLocationCoordinate2D]
+    }
+
     /// `legs(through:via:onTrack:route:)` for a journey's stop signatures and
     /// `TrainJourney.passingPoints`. A stop `anchor` has no coordinate for is left out, so the legs
     /// on either side of it merge into one routed through both legs' passing points.
@@ -151,7 +201,8 @@ extension RailGraph {
         anchor: (String) -> CLLocationCoordinate2D?,
         onTrack: (String) -> CLLocationCoordinate2D?,
         route: (_ from: String, _ to: String) -> [CLLocationCoordinate2D]?
-    ) -> [[CLLocationCoordinate2D]] {
+    ) -> [Leg] {
+        var anchored: [Int] = []
         var stops: [(signature: String, coordinate: CLLocationCoordinate2D)] = []
         var via: [[String]] = []
         var pending: [String] = []
@@ -161,13 +212,15 @@ extension RailGraph {
                     via.append(pending)
                 }
                 stops.append((signature, coordinate))
+                anchored.append(index)
                 pending = []
             }
             if index < passingPoints.count {
                 pending += passingPoints[index]
             }
         }
-        return legs(through: stops, via: via, onTrack: onTrack, route: route)
+        let lines = legs(through: stops, via: via, onTrack: onTrack, route: route)
+        return zip(zip(anchored, anchored.dropFirst()), lines).map { Leg(from: $0.0, to: $0.1, coordinates: $1) }
     }
 
     /// How far off a leg's shortest path a passing point has to be before the leg is rerouted
@@ -175,10 +228,18 @@ extension RailGraph {
     /// or a stub beside it — and routing through it would only add an out-and-back.
     static let detourThreshold: CLLocationDistance = 1000
 
+    /// How far before and after a waypoint `turnsBack` looks to tell which way the route is going,
+    /// so a few metres across a link or along a station's tracks don't count as a turn.
+    static let headingWindow: CLLocationDistance = 200
+
+    /// The longest spike to a waypoint's own node — across a link, or into a short stub beside the
+    /// line — that's cut out of the line rather than drawn in and straight back out.
+    static let maxSpike: CLLocationDistance = 150
+
     /// The shortest path from `from` to `to`, unless some waypoints lie more than
     /// `detourThreshold` off it: then the path through those, in order. A train never turns back
-    /// at a station it passes, so a waypoint the chain reverses at (into a stub and straight out
-    /// again) is dropped.
+    /// at a station it passes, so a waypoint the chain reverses at — into a stub and out again, or
+    /// in on one of a junction station's tracks and back out on another — is dropped.
     private static func path(
         from: String,
         via: [String],
@@ -202,18 +263,56 @@ extension RailGraph {
                 waypoints.remove(at: min(segments.count, waypoints.count - 1))
                 continue
             }
-            let turn = segments.indices.dropLast().first { index in
-                let before = segments[index][segments[index].count - 2], after = segments[index + 1][1]
-                return before.latitude == after.latitude && before.longitude == after.longitude
-            }
-            if let turn {
+            if let turn = segments.indices.dropLast().first(where: { turnsBack(segments[$0], segments[$0 + 1]) }) {
                 waypoints.remove(at: turn)
                 continue
             }
-            // Each segment starts on the node the previous one ended on.
+            for index in segments.indices.dropLast() {
+                let into = segments[index], outOf = segments[index + 1]
+                guard into.count > 2, outOf.count > 2, same(into[into.count - 2], outOf[1]), !same(into[into.count - 3], outOf[2]),
+                      metres(into[into.count - 1], into[into.count - 2]) <= maxSpike else { continue }
+                segments[index].removeLast()
+                segments[index + 1].removeFirst()
+            }
+            // Each segment starts on the point the previous one ended on.
             return segments.dropFirst().reduce(segments[0]) { $0 + $1.dropFirst() }
         }
         return direct
+    }
+
+    /// Whether the route heads back the way it came at the point where `into` ends and `outOf`
+    /// starts, comparing its heading over `headingWindow` either side.
+    private static func turnsBack(_ into: [CLLocationCoordinate2D], _ outOf: [CLLocationCoordinate2D]) -> Bool {
+        guard let end = into.last else { return false }
+        let back = point(headingWindow, along: into.reversed()), ahead = point(headingWindow, along: outOf)
+        let scale = cos(end.latitude * .pi / 180)
+        let inward = (x: (end.longitude - back.longitude) * scale, y: end.latitude - back.latitude)
+        let outward = (x: (ahead.longitude - end.longitude) * scale, y: ahead.latitude - end.latitude)
+        return inward.x * outward.x + inward.y * outward.y < 0
+    }
+
+    /// The first point of `line` at least `distance` from its start along it, or its last point.
+    /// `line` is never empty: every segment has both its ends.
+    private static func point(
+        _ distance: CLLocationDistance, along line: some BidirectionalCollection<CLLocationCoordinate2D>
+    ) -> CLLocationCoordinate2D {
+        var walked: CLLocationDistance = 0
+        for (from, to) in zip(line, line.dropFirst()) {
+            walked += metres(from, to)
+            if walked >= distance {
+                return to
+            }
+        }
+        return line.last ?? CLLocationCoordinate2D()
+    }
+
+    private static func metres(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> CLLocationDistance {
+        let scale = cos(a.latitude * .pi / 180)
+        return hypot((b.longitude - a.longitude) * scale, b.latitude - a.latitude) * 111_320
+    }
+
+    private static func same(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Bool {
+        a.latitude == b.latitude && a.longitude == b.longitude
     }
 
     /// Shortest distance from `point` to the polyline `line`, on a local flat projection around

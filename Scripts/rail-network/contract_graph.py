@@ -1,5 +1,5 @@
 import networkx as nx
-from build_graph import load_lines, build_graph
+from build_graph import build_graph, load_lines, split_edges
 
 
 def douglas_peucker(points, tolerance):
@@ -76,8 +76,10 @@ if __name__ == "__main__":
 
     with open("snapped_stations.json") as f:
         snapped = json.load(f)
-    pinned = {tuple(v["node"]) for v in snapped.values()}
-    print(f"Pinning {len(pinned)} station nodes")
+    links = [link for v in snapped.values() for link in v.get("links", [])]
+    split_edges(graph, [(*link["edge"], link["point"]) for link in links])
+    pinned = {tuple(v["node"]) for v in snapped.values()} | {tuple(link["point"]) for link in links}
+    print(f"Pinning {len(pinned)} station and link nodes")
 
     contracted = contract(graph, pinned=pinned)
     print(f"Contracted: {contracted.number_of_nodes()} nodes, {contracted.number_of_edges()} edges")
