@@ -210,7 +210,7 @@ struct RailGraphTests {
         let into = [RailGraphLinkFixture.a, RailGraphLinkFixture.m, RailGraphLinkFixture.s]
         #expect(coordinates(graph.route(from: "A", to: "S")) == coordinates(into))
         #expect(coordinates(graph.route(from: "S", to: "A")) == coordinates(into.reversed()))
-        // A link that's there but longer than the track loses to the track.
+        // A route over the link (D→B→M→S) that's longer than the track (D→S) loses to the track.
         #expect(coordinates(graph.route(from: "D", to: "S")) == coordinates([RailGraphLinkFixture.d, RailGraphLinkFixture.s]))
     }
 

@@ -49,25 +49,27 @@ if __name__ == "__main__":
     # within `link_reach` that it can only reach the long way round along the track (more than
     # `link_slack` further than straight across); the app lets a route start or end over one, so it
     # can arrive at the station on whichever track it's on. Only the station's own tracks count —
-    # the same railway section (`Bandel`) or place (`PlNamn`) as a track at its node — or Stockholm
-    # C would link into the Citybanan tunnel next door and send every train south through it. A
-    # link ends at the nearest point of its track — a straight run in a tunnel can have no vertex
-    # for hundreds of metres, so that point is usually part-way along an edge, which
-    # `contract_graph.py` splits there (`split_edges`).
+    # the same railway section (`Bandel`) or named place (`PlNamn`; open line has none) as a track
+    # at its node, or right alongside within `adjacent` (Jamtli, on Mittbanan, beside Inlandsbanan's
+    # track) — or Stockholm C would link into the Citybanan tunnel next door and send every train
+    # south through it. A link ends at the nearest point of its track — a straight run in a tunnel
+    # can have no vertex for hundreds of metres, so that point is usually part-way along an edge,
+    # which `contract_graph.py` splits there (`split_edges`).
     link_reach = 100.0  # meters
     link_slack = 50.0  # meters
+    adjacent = 10.0  # meters
     edge_list = list(graph.edges)
     edge_tree = STRtree([LineString(edge) for edge in edge_list])
 
     def links_for(node):
         along = nx.single_source_dijkstra_path_length(graph, node, cutoff=link_reach + link_slack, weight="weight")
         own = graph.edges(node, data=True)
-        sections, places = {data["bandel"] for *_, data in own}, {data["pl_namn"] for *_, data in own}
+        sections, places = {data["bandel"] for *_, data in own}, {data["pl_namn"] for *_, data in own} - {None}
         here = Point(node)
         reached = {}
         for i in edge_tree.query(here.buffer(link_reach)):
             a, b = edge_list[int(i)]
-            if graph[a][b]["bandel"] not in sections and graph[a][b]["pl_namn"] not in places:
+            if graph[a][b]["bandel"] not in sections and graph[a][b]["pl_namn"] not in places and LineString((a, b)).distance(here) > adjacent:
                 continue
             segment = LineString((a, b))
             nearest = segment.interpolate(segment.project(here))

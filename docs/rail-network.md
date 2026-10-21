@@ -73,15 +73,16 @@ Two inputs have to be in place first:
    C). So each station also gets *links*: straight connectors to every other track within 100 m
    that's more than 50 m further along the track than straight across, ending at that
    track's nearest point (usually part-way along an edge, which step 3 splits there). Only the
-   station's own tracks count — the same `Bandel` or `PlNamn` as a track at its node — so
-   Stockholm C doesn't link into the Citybanan tunnel next door, and tracks a switch joins inside
-   the 100 m are still separate tracks. 464 stations get 1,064 links.
+   station's own tracks count — the same `Bandel` or `PlNamn` as a track at its node, or one
+   right alongside within 10 m — so Stockholm C doesn't link into the Citybanan tunnel next door,
+   and tracks a switch joins inside the 100 m are still separate tracks. 465 stations get 1,065
+   links.
 3. **`contract_graph.py`** — the raw graph has ~400k nodes, almost all of them degree-2 points
    that just sit along a straight-ish run between real junctions. It collapses every such chain
    into a single edge carrying the full sub-polyline, *pinning* every snapped station and link
    end as a kept node first (after splitting the edges link ends fall on) so none disappears into
    a collapsed chain. Then simplifies each chain's polyline with Douglas-Peucker (15m tolerance).
-   Result: 7,796 nodes / 10,095 edges for the whole country.
+   Result: 7,797 nodes / 10,096 edges for the whole country.
 4. **`export_network.py`** — converts back to WGS84, rounds to 5 decimals (~1m), and writes the
    final `RailNetwork.json` (800KB): `nodes` (`[lat, lon]` per graph node), `edges` (one
    `[a, b, interior, length]` per contracted chain — node indices, the simplified interior
