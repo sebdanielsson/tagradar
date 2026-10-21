@@ -96,6 +96,13 @@ from the real-world 329.6 km, so a dropped line or a broken contraction can't sh
   concatenating the real path between each consecutive pair of its stops — there's no precomputed
   table of "every travelled station pair" — and falls back to a straight segment for any pair
   where either station isn't in the network or the network hasn't loaded yet.
+- A leg isn't simply the shortest path between its two stops: an express that doesn't stop
+  between Norrköping and Södertälje runs via Katrineholm, while the shortest track goes via
+  Nyköping. `TrainJourney.passingPoints` collects the unadvertised `TrainAnnouncement` rows the
+  train passes between each pair of stops, and the leg is routed through every one of them the
+  network knows. Only advertised stations are snapped (see `snap_stations.py`), so most technical
+  locations are skipped, but the bigger stations a train passes through are enough to pick the
+  right line.
 
 ## Regenerating
 

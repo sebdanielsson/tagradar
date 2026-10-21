@@ -113,6 +113,30 @@ struct TrainJourneyTests {
         #expect(journey.stops.map(\.signature) == ["Cst", "G"])
     }
 
+    @Test func passingPointsAreGroupedPerLegInRunningOrder() throws {
+        let rows = try [
+            announcement(id: "1", type: .departure, station: "Nr", advertised: "06:52"),
+            // Same minute as the departure, so it could be on either side of the stop.
+            announcement(id: "2", type: .departure, station: "Ns", advertised: "06:52", isAdvertised: false),
+            announcement(id: "3", type: .departure, station: "Åbs", advertised: "06:57", isAdvertised: false),
+            announcement(id: "4", type: .arrival, station: "K", advertised: "07:18", isAdvertised: false),
+            announcement(id: "5", type: .departure, station: "K", advertised: "07:18", isAdvertised: false),
+            // A tie keeps the order the rows arrived in.
+            announcement(id: "6", type: .departure, station: "Sp", advertised: "07:34", isAdvertised: false),
+            announcement(id: "7", type: .departure, station: "Nsj", advertised: "07:34", isAdvertised: false),
+            announcement(id: "8", type: .arrival, station: "Söö", advertised: "08:00"),
+            // Unadvertised row at a stop belongs to the stop, not the leg.
+            announcement(id: "9", type: .departure, station: "Söö", advertised: "08:01", isAdvertised: false),
+            announcement(id: "10", type: .arrival, station: "Cst", advertised: "08:23"),
+        ]
+        let journey = try TrainJourney(
+            key: TrainKey(ident: "264", departureDate: #require(rows[0].scheduledDepartureDateTime)),
+            announcements: rows
+        )
+        #expect(journey.stops.map(\.signature) == ["Nr", "Söö", "Cst"])
+        #expect(journey.passingPoints == [["Åbs", "K", "Sp", "Nsj"], []])
+    }
+
     @Test func compositionFallsBackToArrivalRow() throws {
         // SJ 30 at Mdn carries the car order on its arrival row only.
         let rows = try [

@@ -12,6 +12,10 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
 
     let key: TrainKey
     let stops: [TrainStop]
+    /// One entry per consecutive pair of `stops`: the signatures the train passes without stopping
+    /// between them, in order. They pin down which line a leg actually takes where the track
+    /// network offers a shorter alternative (Norrköping → Södertälje via Katrineholm, not Nyköping).
+    let passingPoints: [[String]]
     let announcements: [TrainAnnouncement]
 
     var id: String {
@@ -22,6 +26,7 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
         self.key = key
         self.announcements = announcements
         stops = Self.buildStops(from: announcements)
+        passingPoints = Self.buildPassingPoints(between: stops, from: announcements)
     }
 
     // MARK: Derived summary
@@ -200,6 +205,34 @@ struct TrainJourney: Identifiable, Hashable, Sendable {
             case (_?, nil): true
             default: false
             }
+        }
+    }
+}
+
+extension TrainJourney {
+    /// Assigns every non-passenger row at a station that isn't a stop to the leg whose departure
+    /// and arrival times bracket it, strictly — a passing point timed in the same minute as a stop
+    /// could sit on either side of it. Sorted by time, ties kept in input order (the sort is stable
+    /// and the API lists them in running order), and a point with both an arrival and a departure
+    /// row listed once.
+    static func buildPassingPoints(between stops: [TrainStop], from announcements: [TrainAnnouncement]) -> [[String]] {
+        let stopSignatures = Set(stops.map(\.signature))
+        let passes = announcements
+            .compactMap { row -> (signature: String, time: Date)? in
+                guard !row.isPassengerActivity, let signature = row.locationSignature, !stopSignatures.contains(signature),
+                      let time = row.advertisedTimeAtLocation else { return nil }
+                return (signature, time)
+            }
+            .sorted { $0.time < $1.time }
+        return zip(stops, stops.dropFirst()).map { from, to in
+            guard let start = from.departure?.advertisedTimeAtLocation ?? from.arrival?.advertisedTimeAtLocation,
+                  let end = to.arrival?.advertisedTimeAtLocation ?? to.departure?.advertisedTimeAtLocation
+            else { return [] }
+            var leg: [String] = []
+            for pass in passes where pass.time > start && pass.time < end && leg.last != pass.signature {
+                leg.append(pass.signature)
+            }
+            return leg
         }
     }
 }

@@ -121,18 +121,71 @@ extension RailGraph {
 
     /// Same stitching as `polyline(through:route:)`, but keeps each leg as its own array instead of
     /// merging them into one line — so a caller can style individual legs differently, e.g. drawing
-    /// a cancelled stretch of the journey in red.
+    /// a cancelled stretch of the journey in red. `via[i]`, when present, lists the stations leg `i`
+    /// passes without stopping; the leg is routed through each of them in turn instead of taking
+    /// the shortest path, which can run down a different line than the train does.
     static func legs(
         through stops: [(signature: String, coordinate: CLLocationCoordinate2D)],
+        via: [[String]] = [],
         route: (_ from: String, _ to: String) -> [CLLocationCoordinate2D]?
     ) -> [[CLLocationCoordinate2D]] {
-        zip(stops, stops.dropFirst()).map { from, to in
-            if let real = route(from.signature, to.signature), !real.isEmpty {
-                real
+        zip(stops, stops.dropFirst()).enumerated().map { index, pair in
+            let (from, to) = pair
+            let waypoints = index < via.count ? via[index] : []
+            if let real = path(from: from.signature, via: waypoints, to: to.signature, route: route), !real.isEmpty {
+                return real
             } else {
-                [from.coordinate, to.coordinate]
+                return [from.coordinate, to.coordinate]
             }
         }
+    }
+
+    /// `legs(through:via:route:)` for a journey's stop signatures and `TrainJourney.passingPoints`.
+    /// A stop `anchor` has no coordinate for is left out, so the legs on either side of it merge
+    /// into one routed through both legs' passing points.
+    static func legs(
+        stops signatures: [String],
+        passingPoints: [[String]],
+        anchor: (String) -> CLLocationCoordinate2D?,
+        route: (_ from: String, _ to: String) -> [CLLocationCoordinate2D]?
+    ) -> [[CLLocationCoordinate2D]] {
+        var stops: [(signature: String, coordinate: CLLocationCoordinate2D)] = []
+        var via: [[String]] = []
+        var pending: [String] = []
+        for (index, signature) in signatures.enumerated() {
+            if let coordinate = anchor(signature) {
+                if !stops.isEmpty {
+                    via.append(pending)
+                }
+                stops.append((signature, coordinate))
+                pending = []
+            }
+            if index < passingPoints.count {
+                pending += passingPoints[index]
+            }
+        }
+        return legs(through: stops, via: via, route: route)
+    }
+
+    /// `route` from `from` to `to` through each waypoint in order, skipping any it can't reach (one
+    /// the network doesn't know, or one on the same track node as the previous point). Falls back
+    /// to the direct route if the chain doesn't end at `to`.
+    private static func path(
+        from: String,
+        via waypoints: [String],
+        to: String,
+        route: (_ from: String, _ to: String) -> [CLLocationCoordinate2D]?
+    ) -> [CLLocationCoordinate2D]? {
+        guard !waypoints.isEmpty else { return route(from, to) }
+        var result: [CLLocationCoordinate2D] = []
+        var current = from
+        for next in waypoints + [to] {
+            guard let segment = route(current, next), !segment.isEmpty else { continue }
+            // Each segment starts on the node the previous one ended on.
+            result.append(contentsOf: result.isEmpty ? segment[...] : segment.dropFirst())
+            current = next
+        }
+        return current == to ? result : route(from, to)
     }
 }
 
