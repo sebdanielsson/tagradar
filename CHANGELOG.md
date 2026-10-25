@@ -2,6 +2,15 @@
 
 Releases are cut by [release-please](https://github.com/googleapis/release-please) from [Conventional Commits](https://www.conventionalcommits.org/) on `main`; new sections are added above this one automatically. The project uses [Semantic Versioning](https://semver.org/).
 
+## [1.3.1](https://github.com/sebdanielsson/tagradar/compare/v1.3.0...v1.3.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** update certifi to 2026.10.23 in rail-network lockfile ([#89](https://github.com/sebdanielsson/tagradar/issues/89)) ([479d800](https://github.com/sebdanielsson/tagradar/commit/479d8000b6bad59846f4c550cbbe6428d0130627))
+* draw map routes through the stations a train passes ([#82](https://github.com/sebdanielsson/tagradar/issues/82)) ([7965770](https://github.com/sebdanielsson/tagradar/commit/796577086f0345f3ee8fae04c3975b893f91655b))
+* stop map routes running past multi-track stations and back ([#84](https://github.com/sebdanielsson/tagradar/issues/84)) ([e5374e6](https://github.com/sebdanielsson/tagradar/commit/e5374e65a35abeea993f84ba162b25f87847419c))
+
 ## [1.3.0](https://github.com/sebdanielsson/tagradar/compare/v1.2.0...v1.3.0) (2026-10-17)
 
 
