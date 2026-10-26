@@ -2,4 +2,4 @@
 # Gemfile.lock, so Renovate can bump it; run it with `bundle exec fastlane`.
 source "https://rubygems.org"
 
-gem "fastlane", "2.241.1"
+gem "fastlane", "2.241.2"
