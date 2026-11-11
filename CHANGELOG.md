@@ -2,6 +2,14 @@
 
 Releases are cut by [release-please](https://github.com/googleapis/release-please) from [Conventional Commits](https://www.conventionalcommits.org/) on `main`; new sections are added above this one automatically. The project uses [Semantic Versioning](https://semver.org/).
 
+## [1.3.2](https://github.com/sebdanielsson/tagradar/compare/v1.3.1...v1.3.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* **deps:** update dependency @upstash/redis to ^1.40.0 ([#92](https://github.com/sebdanielsson/tagradar/issues/92)) ([2744247](https://github.com/sebdanielsson/tagradar/commit/27442474aedf73e353a98751a504e98b3939e86f))
+* **deps:** update dependency @upstash/redis to ^1.41.0 ([#101](https://github.com/sebdanielsson/tagradar/issues/101)) ([f22d25c](https://github.com/sebdanielsson/tagradar/commit/f22d25c5f0709085f5c7ef6ccd83243a5a79df99))
+
 ## [1.3.1](https://github.com/sebdanielsson/tagradar/compare/v1.3.0...v1.3.1) (2026-10-23)
 
 
